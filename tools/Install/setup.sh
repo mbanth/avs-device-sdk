@@ -60,8 +60,8 @@ ANDROID_CONFIG_FILE=""
 PATH_FILES_DIR="$HOME/.config/"
 VOCALFUSION_3510_SALES_DEMO_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_sales_demo_path"
 VOCALFUSION_3510_AVS_SETUP_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_avs_setup_path"
-
 PI_HAT_CTRL_PATH="$THIRD_PARTY_PATH/pi_hat_ctrl"
+GPIO_KEY_WORD_DETECTOR_FLAG=""
 ALIASES="$HOME/.bash_aliases"
 
 # Default value for XMOS device
@@ -167,7 +167,8 @@ while getopts "$OPTIONS" opt ; do
         x )
             XMOS_DEVICE="$OPTARG"
             ;;
-        g ) GPIO_KEY_WORD_DETECTOR_FLAG="-g"
+        g )
+            GPIO_KEY_WORD_DETECTOR_FLAG="-g"
             ;;
         h )
             show_help
