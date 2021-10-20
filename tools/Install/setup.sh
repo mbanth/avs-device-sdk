@@ -189,7 +189,7 @@ if [ "$PLATFORM" == "Raspberry pi" ]
 then
   PI_CMD = "pi.sh ${GPIO_KEY_WORD_DETECTOR_FLAG}"
   echo "Running command ${PI_CMD}"
-  source PI_CMD
+  source $PI_CMD
 elif [ "$PLATFORM" == "Windows mingw64" ]
 then
   source mingw.sh
