@@ -37,8 +37,9 @@ static const std::string TAG("GPIOKeywordDetector");
  */
 #define LX(event) alexaClientSDK::avsCommon::utils::logger::LogEntry(TAG, event)
 
-/// GPIO pin to monitor
-static const int GPIO_PIN = 13;
+/// GPIO pin to monitor:
+// Wiring Pi pin 2 which corresponds to Physical/Board pin 13 and GPIO/BCM pin 27
+static const int GPIO_PIN = 2;
 
 /// Number of m_maxSamplesPerPush * WW_REWIND_SAMPLES to rewind when WW is detected on GPIO
 static const size_t WW_REWIND_SAMPLES = 10;
@@ -215,7 +216,7 @@ void GPIOKeywordDetector::detectionLoop() {
             // check gpio value
             int gpioValue = digitalRead(GPIO_PIN);
 
-            if (gpioValue == HIGH)
+            if (gpioValue == LOW)
             {
                 ACSDK_INFO(LX("WW detected"));
                 notifyKeyWordObservers(
