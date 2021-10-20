@@ -75,7 +75,9 @@ install_dependencies() {
 
 run_os_specifics() {
   build_port_audio
-  build_kwd_engine
+  if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
+    build_kwd_engine
+  fi
   # configure_sound
 }
 
