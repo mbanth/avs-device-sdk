@@ -35,7 +35,7 @@ show_help() {
 OPTIONS=gh
 while getopts "$OPTIONS" opt ; do
     case $opt in
-        g ) GPIO_KEY_WORD_DETECTOR="ON"
+        g ) GPIO_KEY_WORD_DETECTOR_FLAG="ON"
             ;;
 
         h )
@@ -49,7 +49,7 @@ SOUND_CONFIG="$HOME/.asoundrc"
 START_SCRIPT="$INSTALL_BASE/startsample.sh"
 START_PREVIEW_SCRIPT="$INSTALL_BASE/startpreview.sh"
 
-if [ $GPIO_KEY_WORD_DETECTOR != "ON" ]
+if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
 then
     CMAKE_PLATFORM_SPECIFIC=(-DSENSORY_KEY_WORD_DETECTOR=ON \
         -DGSTREAMER_MEDIA_PLAYER=ON -DPORTAUDIO=ON \

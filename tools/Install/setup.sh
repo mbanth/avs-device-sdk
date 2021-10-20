@@ -167,7 +167,7 @@ while getopts "$OPTIONS" opt ; do
         x )
             XMOS_DEVICE="$OPTARG"
             ;;
-        g ) GPIO_KEY_WORD_DETECTOR="ON"
+        g ) GPIO_KEY_WORD_DETECTOR_FLAG="-g"
             ;;
         h )
             show_help
@@ -186,7 +186,7 @@ PLATFORM=${PLATFORM:-$(get_platform)}
 
 if [ "$PLATFORM" == "Raspberry pi" ]
 then
-  source pi.sh -g
+  source pi.sh $GPIO_KEY_WORD_DETECTOR_FLAG
 elif [ "$PLATFORM" == "Windows mingw64" ]
 then
   source mingw.sh
@@ -304,7 +304,7 @@ while true; do
   esac
 done
 
-if [ $GPIO_KEY_WORD_DETECTOR != "ON" ]
+if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
 then
   SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
   XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
