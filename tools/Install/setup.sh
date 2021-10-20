@@ -123,7 +123,8 @@ show_help() {
   echo  '  -a <file-name>        The file that contains Android installation configurations (e.g. androidConfig.txt)'
   echo  '  -d <description>      The description of the device.'
   echo  '  -m <manufacturer>     The device manufacturer name.'
-  echo  '  -x <xmos-device-type> XMOS device to setup: default xvf3510, possible value xvf3500'
+  echo  '  -x <xmos-device-type> XMOS device to setup: default xvf3510'
+  echo  '  -g                    Flag to enable keyword detector on GPIO interrupt'
   echo  '  -h                    Display this help and exit'
 }
 
@@ -143,7 +144,7 @@ XMOS_TAG=$2
 
 shift 2
 
-OPTIONS=s:a:m:d:hx:
+OPTIONS=s:a:d:m:x:gh
 while getopts "$OPTIONS" opt ; do
     case $opt in
         s )
@@ -166,6 +167,8 @@ while getopts "$OPTIONS" opt ; do
         x )
             XMOS_DEVICE="$OPTARG"
             ;;
+        g ) GPIO_KEY_WORD_DETECTOR="ON"
+            ;;
         h )
             show_help
             exit 1
@@ -183,7 +186,7 @@ PLATFORM=${PLATFORM:-$(get_platform)}
 
 if [ "$PLATFORM" == "Raspberry pi" ]
 then
-  source pi.sh
+  source pi.sh -g
 elif [ "$PLATFORM" == "Windows mingw64" ]
 then
   source mingw.sh
@@ -301,8 +304,15 @@ while true; do
   esac
 done
 
-SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
-XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
+if [ $GPIO_KEY_WORD_DETECTOR != "ON" ]
+then
+  SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
+  XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
+else
+  SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=OFF"
+  XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=OFF"
+fi
+
 if [ $XMOS_DEVICE = "xvf3510" ]
 then
   PI_HAT_FLAG="-DPI_HAT_CTRL=ON"
