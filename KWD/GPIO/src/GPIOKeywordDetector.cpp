@@ -41,8 +41,9 @@ static const std::string TAG("GPIOKeywordDetector");
 // Wiring Pi pin 2 which corresponds to Physical/Board pin 13 and GPIO/BCM pin 27
 static const int GPIO_PIN = 2;
 
-/// Number of m_maxSamplesPerPush * WW_REWIND_SAMPLES to rewind when WW is detected on GPIO
-static const size_t WW_REWIND_SAMPLES = 10;
+/// Number of m_maxSamplesPerPush * KW_REWIND_SAMPLES to rewind when WW is detected on GPIO
+// m_maxSamplesPerPush is 10ms
+static const size_t KW_REWIND_SAMPLES = 100;
 
 /// Wakeword string
 static const std::string WAKEWORD_STRING = "alexa";
@@ -223,7 +224,7 @@ void GPIOKeywordDetector::detectionLoop() {
                     m_stream,
                     WAKEWORD_STRING,
                     // avsCommon::sdkInterfaces::KeyWordObserverInterface::UNSPECIFIED_INDEX,
-                    (m_streamReader->tell() < (m_maxSamplesPerPush*WW_REWIND_SAMPLES) ? 0 : m_streamReader->tell() - (m_maxSamplesPerPush*WW_REWIND_SAMPLES)),
+                    (m_streamReader->tell() < (m_maxSamplesPerPush*KW_REWIND_SAMPLES) ? 0 : m_streamReader->tell() - (m_maxSamplesPerPush*KW_REWIND_SAMPLES)),
                     m_streamReader->tell());
             }
         }
