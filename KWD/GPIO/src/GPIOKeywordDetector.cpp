@@ -16,6 +16,7 @@
  */
 
 #include <memory>
+#include <chrono>
 
 #include <AVSCommon/Utils/Logger/Logger.h>
 #include <wiringPi.h>
@@ -53,6 +54,9 @@ static const size_t HERTZ_PER_KILOHERTZ = 1000;
 
 /// The timeout to use for read calls to the SharedDataStream.
 const std::chrono::milliseconds TIMEOUT_FOR_READ_CALLS = std::chrono::milliseconds(1000);
+
+/// The minimum time between WW detections
+const std::chrono::milliseconds TIMEOUT_FOR_WW_DETECTIONS = std::chrono::milliseconds(2000);
 
 /// The GPIO WW compatible AVS sample rate of 16 kHz.
 static const unsigned int GPIO_COMPATIBLE_SAMPLE_RATE = 16000;
@@ -187,9 +191,11 @@ bool GPIOKeywordDetector::init() {
 }
 
 void GPIOKeywordDetector::detectionLoop() {
+    using namespace std::chrono;
     m_beginIndexOfStreamReader = m_streamReader->tell();
     notifyKeyWordDetectorStateObservers(KeyWordDetectorStateObserverInterface::KeyWordDetectorState::ACTIVE);
     std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
+    auto detectionTime = steady_clock::now();
 
     while (!m_isShuttingDown) {
         bool didErrorOccur = false;
@@ -214,18 +220,21 @@ void GPIOKeywordDetector::detectionLoop() {
             m_beginIndexOfStreamReader = m_streamReader->tell();
         } else if (wordsRead > 0) {
             // Words were successfully read.
-            // check gpio value
-            int gpioValue = digitalRead(GPIO_PIN);
-
-            if (gpioValue == LOW)
-            {
-                ACSDK_INFO(LX("WW detected"));
-                notifyKeyWordObservers(
-                    m_stream,
-                    WAKEWORD_STRING,
-                    // avsCommon::sdkInterfaces::KeyWordObserverInterface::UNSPECIFIED_INDEX,
-                    (m_streamReader->tell() < (m_maxSamplesPerPush*KW_REWIND_SAMPLES) ? 0 : m_streamReader->tell() - (m_maxSamplesPerPush*KW_REWIND_SAMPLES)),
-                    m_streamReader->tell());
+            // check gpio value if TIMEOUT_FOR_WW_DETECTIONS milliseconds have passed from previous detection
+            auto elapsedTime = duration_cast<milliseconds>(steady_clock::now() - detectionTime).count();
+            if (elapsedTime > TIMEOUT_FOR_WW_DETECTIONS.count()) {
+                int gpioValue = digitalRead(GPIO_PIN);
+                if (gpioValue == LOW)
+                {
+                    detectionTime = steady_clock::now();
+		    ACSDK_INFO(LX("WW detected via GPIO").d("timestamp (ms)", duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()));
+                    notifyKeyWordObservers(
+                        m_stream,
+                        WAKEWORD_STRING,
+                        // avsCommon::sdkInterfaces::KeyWordObserverInterface::UNSPECIFIED_INDEX,
+                        (m_streamReader->tell() < (m_maxSamplesPerPush*KW_REWIND_SAMPLES) ? 0 : m_streamReader->tell() - (m_maxSamplesPerPush*KW_REWIND_SAMPLES)),
+                        m_streamReader->tell());
+	        }
             }
         }
     }
