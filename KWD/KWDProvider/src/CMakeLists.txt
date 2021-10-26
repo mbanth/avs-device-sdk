@@ -10,10 +10,6 @@ if(SENSORY_KEY_WORD_DETECTOR)
     target_link_libraries(KeywordDetectorProvider SENSORY)
 endif()
 
-if(KITTAI_KEY_WORD_DETECTOR)
-    target_link_libraries(KeywordDetectorProvider KITTAI)
-endif()
-
 if(GPIO_KEY_WORD_DETECTOR)
     target_link_libraries(KeywordDetectorProvider GPIO)
 endif()

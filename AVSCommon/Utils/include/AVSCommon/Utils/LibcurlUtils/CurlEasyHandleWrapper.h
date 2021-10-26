@@ -36,6 +36,28 @@ namespace alexaClientSDK {
 namespace avsCommon {
 namespace utils {
 namespace libcurlUtils {
+// Forward declaration
+class CurlEasyHandleWrapper;
+
+// This abstracts the setting of curl options from the CurlEasyHandleWrapper
+class CurlEasyHandleWrapperOptionsSettingAdapter {
+public:
+    CurlEasyHandleWrapperOptionsSettingAdapter(CurlEasyHandleWrapper* wrapper) : m_easyHandleWrapper(wrapper) {
+    }
+
+    /**
+     * Helper function for calling curl_easy_setopt and checking the result.
+     *
+     * @param option The option parameter to pass through to curl_easy_setopt.
+     * @param param The param option to pass through to curl_easy_setopt.
+     * @return @c true of the operation was successful.
+     */
+    template <typename ParamType>
+    bool setopt(CURLoption option, ParamType param);
+
+private:
+    CurlEasyHandleWrapper* m_easyHandleWrapper;
+};
 
 /**
  * Class to allocate and configure a curl easy handle
@@ -214,16 +236,6 @@ public:
     bool setReadCallback(CurlCallback callback, void* userData);
 
     /**
-     * Helper function for calling curl_easy_setopt and checking the result.
-     *
-     * @param option The option parameter to pass through to curl_easy_setopt.
-     * @param param The param option to pass through to curl_easy_setopt.
-     * @return @c true of the operation was successful.
-     */
-    template <typename ParamType>
-    bool setopt(CURLoption option, ParamType param);
-
-    /**
      * URL encode a string.
      *
      * @param in The string to encode.
@@ -263,7 +275,40 @@ public:
      */
     CURLcode pause(int mask);
 
+    /**
+     * Static function to set the network interface to be used for the curl
+     * connection.
+     *
+     * Network interface provided will be used in preference over the value
+     * in provided in config. Set emtpy string to reset to default.
+     *
+     * @note The network interace set shall applied only to newly instantiated
+     * @c CurlEasyHandleWrapper objects.
+     *
+     * @param value The interface name as defined in CURLOPT_INTERFACE.
+     */
+    static void setInterfaceName(const std::string& interfaceName);
+
+    /**
+     * Static function to get the network interface.
+     *
+     * @returns the current network interface, otherwise an empty string.
+     */
+    static std::string getInterfaceName();
+
+    CurlEasyHandleWrapperOptionsSettingAdapter& curlOptionsSetter();
+
 private:
+    /**
+     * Helper function for calling curl_easy_setopt and checking the result.
+     *
+     * @param option The option parameter to pass through to curl_easy_setopt.
+     * @param param The param option to pass through to curl_easy_setopt.
+     * @return @c true of the operation was successful.
+     */
+    template <typename ParamType>
+    bool setopt(CURLoption option, ParamType param);
+
     /**
      * Frees and sets the following attributes to NULL:
      * <ul>
@@ -309,6 +354,9 @@ private:
     avsCommon::utils::logger::LogStringFormatter m_logFormatter;
 #endif
 
+    /// Initializes the @c m_interfaceName  from config.
+    static void initializeNetworkInterfaceNameLocked();
+
     /// The associated libcurl easy handle
     CURL* m_handle;
     /// A list of headers needed to be added at the HTTP level
@@ -321,9 +369,18 @@ private:
     curl_httppost* m_lastPost;
     /// Name for this handle.
     std::string m_id;
-
+    /// Synchronizes access to the @c m_interfaceName
+    static std::mutex m_interfaceNameMutex;
+    /// Indicates the initialization of @c m_interfaceName
+    static bool m_isInterfaceNameInitialized;
+    /// Interface name to be used for curl
+    static std::string m_interfaceName;
     /// If no id is provided by the user, we will generate it from this counter.
     static std::atomic<uint64_t> m_idGenerator;
+
+    CurlEasyHandleWrapperOptionsSettingAdapter m_curlOptionsSettingAdapter;
+
+    friend class CurlEasyHandleWrapperOptionsSettingAdapter;
 };
 
 template <typename ParamType>
@@ -339,6 +396,11 @@ bool CurlEasyHandleWrapper::setopt(CURLoption option, ParamType value) {
         return false;
     }
     return true;
+}
+
+template <typename ParamType>
+bool CurlEasyHandleWrapperOptionsSettingAdapter::setopt(CURLoption option, ParamType value) {
+    return m_easyHandleWrapper->setopt(option, std::forward<ParamType>(value));
 }
 
 }  // namespace libcurlUtils

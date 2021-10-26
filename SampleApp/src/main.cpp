@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
             }
         }
     } else {
-#if defined(KWD_KITTAI) || defined(KWD_SENSORY) || defined(KWD_GPIO)
+#if defined(KWD_SENSORY) || defined(KWD_GPIO)
         if (argc < 3) {
             ConsolePrinter::simplePrint(
                 "USAGE: " + std::string(argv[0]) +
@@ -165,7 +165,7 @@ int main(int argc, char* argv[]) {
             ,
             diagnostics
 #endif
-    );
+        );
 
         if (!sampleApplication) {
             ConsolePrinter::simplePrint("Failed to create SampleApplication!");

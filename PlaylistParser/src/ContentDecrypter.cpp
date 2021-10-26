@@ -39,7 +39,12 @@ using namespace avsCommon::utils::playlistParser;
 using namespace avsCommon::avs::attachment;
 
 /// Unique ptr to auto release EVP_CIPHER_CTX.
-using EVP_CIPHER_CTX_free_ptr = std::unique_ptr<EVP_CIPHER_CTX, decltype(&::EVP_CIPHER_CTX_free)>;
+struct EVP_CIPHER_CTX_Deleter {
+    void operator()(EVP_CIPHER_CTX* ctx) {
+        EVP_CIPHER_CTX_free(ctx);
+    }
+};
+using EVP_CIPHER_CTX_free_ptr = std::unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_Deleter>;
 
 /// String to identify log entries originating from this file.
 static const std::string TAG("ContentDecrypter");
@@ -197,6 +202,7 @@ std::string ffmpegErrToStr(int err) {
 ContentDecrypter::ContentDecrypter() :
         RequiresShutdown{"ContentDecrypter"},
         m_needWavHeader{false},
+        m_totalDuration{std::chrono::milliseconds::zero()},
         m_shuttingDown{false} {
 #ifdef ENABLE_SAMPLE_AES
 // av_register_all is deprecated in FFMpeg 4.0.
@@ -229,7 +235,13 @@ bool ContentDecrypter::decryptAndWrite(
     const ByteVector& encryptedContent,
     const ByteVector& key,
     const EncryptionInfo& encryptionInfo,
-    std::shared_ptr<AttachmentWriter> streamWriter) {
+    const std::shared_ptr<AttachmentWriter>& streamWriter,
+    const std::shared_ptr<Id3TagsRemover>& id3TagRemover) {
+    if (!id3TagRemover) {
+        ACSDK_WARN(LX("decryptAndWriteFailed").d("reason", "nullId3TagRemover"));
+        // fallback to not remove ID3 tags
+    }
+
     ByteVector ivByteArray;
     if (!convertIVToByteArray(encryptionInfo.initVector, &ivByteArray)) {
         ACSDK_ERROR(LX("decryptAndWriteFailed").d("reason", "convertIVToByteArrayFailed"));
@@ -264,6 +276,9 @@ bool ContentDecrypter::decryptAndWrite(
             return false;
     }
 
+    if (id3TagRemover) {
+        id3TagRemover->stripID3Tags(decryptedContent);
+    }
     if (!writeToStream(decryptedContent, streamWriter)) {
         ACSDK_ERROR(LX("decryptAndWriteFailed").d("reason", "writeFailed"));
         return false;
@@ -324,7 +339,7 @@ int ContentDecrypter::decryptAES(
 
     int outputSize = 0;
     int len = 0;
-    EVP_CIPHER_CTX_free_ptr ctx(EVP_CIPHER_CTX_new(), ::EVP_CIPHER_CTX_free);
+    EVP_CIPHER_CTX_free_ptr ctx(EVP_CIPHER_CTX_new());
     if (!ctx.get()) {
         logFailure("EVPContextIsNULL");
         return 0;

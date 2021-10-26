@@ -33,6 +33,11 @@
 #include <DefaultClient/EqualizerRuntimeSetup.h>
 #include <acsdkExternalMediaPlayer/ExternalMediaPlayer.h>
 
+#ifdef AUTH_MANAGER
+#include <acsdkAuthorization/AuthorizationManager.h>
+#include <acsdkAuthorization/LWA/LWAAuthorizationAdapter.h>
+#endif
+
 #include "ConsolePrinter.h"
 #include "ConsoleReader.h"
 
@@ -205,10 +210,12 @@ private:
      *
      * @param peripheralEndpointBuilder The reference to peripheral endpoint's @c EndpointBuilder used for adding
      * controllers.
+     * @param diagnostics Diagnostics interface which provides suite of APIs for diagnostic insight into SDK.
      * @return Returns @c true if successful in adding all the four controllers otherwise @c false.
      */
     bool addControllersToPeripheralEndpoint(
-        std::shared_ptr<avsCommon::sdkInterfaces::endpoints::EndpointBuilderInterface> peripheralEndpointBuilder);
+        std::shared_ptr<avsCommon::sdkInterfaces::endpoints::EndpointBuilderInterface> peripheralEndpointBuilder,
+        std::shared_ptr<avsCommon::sdkInterfaces::diagnostics::DiagnosticsInterface> diagnostics);
 #endif
     /// Object with which to trigger shutdown operations.
     std::shared_ptr<acsdkShutdownManagerInterfaces::ShutdownManagerInterface> m_shutdownManager;
@@ -310,6 +317,14 @@ private:
 #ifdef MODE_CONTROLLER
     /// The @c PeripheralEndpointModeControllerHandler used by @c InteractionManager
     std::shared_ptr<PeripheralEndpointModeControllerHandler> m_peripheralEndpointModeHandler;
+#endif
+
+#ifdef AUTH_MANAGER
+    /// The @c AuthorizationManager instance that can be used to dynamically authorize with different methods.
+    std::shared_ptr<acsdkAuthorization::AuthorizationManager> m_authManager;
+
+    /// The adapter that supports authorizing with LWA based methods.
+    std::shared_ptr<acsdkAuthorization::lwa::LWAAuthorizationAdapter> m_lwaAdapter;
 #endif
 
 #ifdef SENSORY_OP_POINT

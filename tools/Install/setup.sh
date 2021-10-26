@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright 2018-2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -28,6 +28,10 @@ CLONE_URL=${CLONE_URL:- 'https://github.com/lucianomartin/avs-device-sdk.git'}
 PORT_AUDIO_FILE="pa_stable_v190600_20161030.tgz"
 PORT_AUDIO_DOWNLOAD_URL="http://www.portaudio.com/archives/$PORT_AUDIO_FILE"
 
+CURL_VER=7.67.0
+CURL_DOWNLOAD_URL="https://github.com/curl/curl/releases/download/curl-7_67_0/curl-${CURL_VER}.tar.gz"
+
+TEST_MODEL_DOWNLOAD="https://github.com/Sensory/alexa-rpi/blob/master/models/spot-alexa-rpi-31000.snsr"
 
 BUILD_TESTS=${BUILD_TESTS:-'true'}
 
@@ -395,23 +399,20 @@ echo
 echo "==============> SAVING CONFIGURATION FILE =============="
 echo
 
-# Create configuration file with audioSink configuration at the beginning of the file
-cat << EOF > "$OUTPUT_CONFIG_FILE"
+GSTREAMER_CONFIG=$(cat <<-END
  {
     "gstreamerMediaPlayer":{
         "audioSink":"$GSTREAMER_AUDIO_SINK"
     },
-EOF
+END
+)
 
 cd $CURRENT_DIR
 bash genConfig.sh config.json $DEVICE_SERIAL_NUMBER $CONFIG_DB_PATH $SOURCE_PATH/avs-device-sdk $TEMP_CONFIG_FILE \
   -DSDK_CONFIG_MANUFACTURER_NAME="$DEVICE_MANUFACTURER_NAME" -DSDK_CONFIG_DEVICE_DESCRIPTION="$DEVICE_DESCRIPTION"
 
-# Delete first line from temp file to remove opening bracket
-sed -i -e "1d" $TEMP_CONFIG_FILE
-
-# Append temp file to configuration file
-cat $TEMP_CONFIG_FILE >> $OUTPUT_CONFIG_FILE
+# Replace the first opening bracket in the AlexaClientSDKConfig.json file with GSTREAMER_CONFIG variable.
+awk -v config="$GSTREAMER_CONFIG" 'NR==1,/{/{sub(/{/,config)}1' $TEMP_CONFIG_FILE > $OUTPUT_CONFIG_FILE
 
 # Enable the suggestedLatency parameter for portAudio
 sed -i -e '/displayCardsSupported/s/$/,/' $OUTPUT_CONFIG_FILE

@@ -191,7 +191,8 @@ SetStateResult ContextManager::setState(
                 if (requestIt != m_pendingStateRequest.end()) {
                     requestIt->second.erase(capabilityIdentifier);
                 }
-                contextAvailableCallback = getContextAvailableCallbackIfReadyLocked(stateRequestToken, "");
+                contextAvailableCallback =
+                    getContextAvailableCallbackIfReadyLocked(stateRequestToken, capabilityIdentifier.endpointId);
             }
             /// Callback method should be called outside the lock.
             contextAvailableCallback();
@@ -381,6 +382,7 @@ ContextRequestToken ContextManager::getContextInternal(
         std::function<void()> contextAvailableCallback = NoopCallback;
         {
             std::lock_guard<std::mutex> statesLock{m_endpointsStateMutex};
+
             for (auto& capability : m_endpointsState[requestEndpointId]) {
                 auto stateInfo = capability.second;
                 auto stateProvider = capability.second.stateProvider;
@@ -419,7 +421,7 @@ ContextRequestToken ContextManager::getContextInternal(
 std::function<void()> ContextManager::getContextFailureCallbackLocked(
     unsigned int requestToken,
     ContextRequestError error) {
-    ACSDK_DEBUG5(LX(__func__).d("token", requestToken));
+    ACSDK_ERROR(LX(__func__).d("token", requestToken).d("error", error));
     // Make sure the request gets cleared in the end of this function no matter the outcome.
     error::FinallyGuard clearRequestGuard{[this, requestToken] {
         auto requestIt = m_pendingRequests.find(requestToken);
@@ -436,6 +438,9 @@ std::function<void()> ContextManager::getContextFailureCallbackLocked(
         return NoopCallback;
     }
     for (auto& pendingState : m_pendingStateRequest[requestToken]) {
+        ACSDK_ERROR(LX(__func__)
+                        .d("pendingStateProviderName", pendingState.name)
+                        .d("pendingStateProviderNamespace", pendingState.nameSpace));
         auto metricName = STATE_PROVIDER_TIMEOUT_METRIC_PREFIX + pendingState.nameSpace;
         recordMetric(
             m_metricRecorder,
@@ -528,7 +533,21 @@ void ContextManager::updateCapabilityState(
     auto& endpointId = capabilityIdentifier.endpointId.empty() ? m_defaultEndpointId : capabilityIdentifier.endpointId;
     auto& capabilitiesState = m_endpointsState[endpointId];
     auto& stateProvider = capabilitiesState[capabilityIdentifier].stateProvider;
+    ACSDK_INFO(LX(__func__)
+                   .sensitive("endpointId", endpointId)
+                   .sensitive("identifier", capabilityIdentifier)
+                   .sensitive("state", capabilityState.valuePayload));
     capabilitiesState[capabilityIdentifier] = StateInfo(stateProvider, capabilityState);
+    for (const auto& provider : m_endpointsState[endpointId]) {
+        (void)provider;  // To avoid compiler warning in RELEASE builds where DEBUG log is compiled out
+        ACSDK_DEBUG5(LX("updateCapabilityStateDetailed")
+                         .sensitive("endpointId", provider.first)
+                         .sensitive(
+                             "value",
+                             provider.second.capabilityState.hasValue()
+                                 ? provider.second.capabilityState.value().valuePayload
+                                 : "none"));
+    }
 }
 
 void ContextManager::updateCapabilityState(
@@ -539,7 +558,21 @@ void ContextManager::updateCapabilityState(
     auto& endpointId = capabilityIdentifier.endpointId.empty() ? m_defaultEndpointId : capabilityIdentifier.endpointId;
     auto& capabilityInfo = m_endpointsState[endpointId];
     auto& stateProvider = capabilityInfo[capabilityIdentifier].stateProvider;
+    ACSDK_INFO(LX(__func__)
+                   .sensitive("endpointId", endpointId)
+                   .sensitive("identifier", capabilityIdentifier)
+                   .sensitive("state", jsonState));
     capabilityInfo[capabilityIdentifier] = StateInfo(stateProvider, jsonState, refreshPolicy);
+    for (const auto& provider : m_endpointsState[endpointId]) {
+        (void)provider;  // To avoid compiler warning in RELEASE builds where DEBUG log is compiled out
+        ACSDK_DEBUG5(LX("updateCapabilityStateDetailed")
+                         .sensitive("endpointId", provider.first)
+                         .sensitive(
+                             "value",
+                             provider.second.capabilityState.hasValue()
+                                 ? provider.second.capabilityState.value().valuePayload
+                                 : "none"));
+    }
 }
 
 ContextManager::StateInfo::StateInfo(

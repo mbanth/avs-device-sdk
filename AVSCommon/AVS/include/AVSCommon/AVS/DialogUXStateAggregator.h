@@ -21,12 +21,14 @@
 #include <unordered_set>
 #include <vector>
 
-#include "AVSCommon/SDKInterfaces/AudioInputProcessorObserverInterface.h"
+#include <acsdkInteractionModelInterfaces/InteractionModelNotifierInterface.h>
+#include <acsdkInteractionModelInterfaces/InteractionModelRequestProcessingObserverInterface.h>
+#include <AVSCommon/SDKInterfaces/AudioInputProcessorObserverInterface.h>
+#include <AVSCommon/SDKInterfaces/AVSConnectionManagerInterface.h>
 #include <AVSCommon/SDKInterfaces/ConnectionStatusObserverInterface.h>
-#include "AVSCommon/SDKInterfaces/DialogUXStateObserverInterface.h"
-#include "AVSCommon/SDKInterfaces/InteractionModelRequestProcessingObserverInterface.h"
-#include "AVSCommon/SDKInterfaces/MessageObserverInterface.h"
-#include "AVSCommon/SDKInterfaces/SpeechSynthesizerObserverInterface.h"
+#include <AVSCommon/SDKInterfaces/DialogUXStateObserverInterface.h>
+#include <AVSCommon/SDKInterfaces/MessageObserverInterface.h>
+#include <AVSCommon/SDKInterfaces/SpeechSynthesizerObserverInterface.h>
 #include <AVSCommon/Utils/Metrics/MetricRecorderInterface.h>
 #include <AVSCommon/Utils/Threading/Executor.h>
 #include <AVSCommon/Utils/Timing/Timer.h>
@@ -42,9 +44,8 @@ namespace avs {
 class DialogUXStateAggregator
         : public sdkInterfaces::AudioInputProcessorObserverInterface
         , public sdkInterfaces::SpeechSynthesizerObserverInterface
-        , public sdkInterfaces::MessageObserverInterface
         , public sdkInterfaces::ConnectionStatusObserverInterface
-        , public sdkInterfaces::InteractionModelRequestProcessingObserverInterface {
+        , public acsdkInteractionModelInterfaces::InteractionModelRequestProcessingObserverInterface {
 public:
     /**
      * This timeout will be used to avoid going to the IDLE state immediately after receiving a message from AVS so
@@ -63,6 +64,22 @@ public:
      * directive is not received from AVS so that the client may move back to an IDLE state.
      */
     static constexpr std::chrono::seconds LONG_TIMEOUT_FOR_LISTENING_TO_IDLE = std::chrono::seconds{8};
+
+    /**
+     * Factory method for the @c DialogUXStateAggregator.
+     * @note This factory method uses the default timeout values for DialogUXStateAggregator.
+     *
+     * @param metricRecorder The metric recorder.
+     * @param connectionManager The connection manager that this @c DialogUXStateAggregator will observe.
+     * @param interactionModelNotifier The object that will relay @c InteractionModel notifications to this
+     * @c DialogUXStateAggregator.
+     * @return A @c std::shared_ptr<DialogUXStateAggregator>.
+     */
+    static std::shared_ptr<DialogUXStateAggregator> createDialogUXStateAggregator(
+        const std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface>& metricRecorder,
+        const std::shared_ptr<avsCommon::sdkInterfaces::AVSConnectionManagerInterface>& connectionManager,
+        const std::shared_ptr<acsdkInteractionModelInterfaces::InteractionModelNotifierInterface>&
+            interactionModelNotifier);
 
     /**
      * Constructor.
@@ -105,15 +122,19 @@ public:
      */
     void removeObserver(std::shared_ptr<sdkInterfaces::DialogUXStateObserverInterface> observer);
 
+    /// @name AudioInputProcessorObserverInterface Functions
+    /// @{
     void onStateChanged(sdkInterfaces::AudioInputProcessorObserverInterface::State state) override;
+    /// @}
 
+    /// @name SpeechSynthesizerObserverInterface Functions
+    /// @{
     void onStateChanged(
         sdkInterfaces::SpeechSynthesizerObserverInterface::SpeechSynthesizerState state,
         const avsCommon::utils::mediaPlayer::MediaPlayerInterface::SourceId mediaSourceId,
         const avsCommon::utils::Optional<avsCommon::utils::mediaPlayer::MediaPlayerState>& mediaPlayerState,
         const std::vector<avsCommon::utils::audioAnalyzer::AudioAnalyzerState>& audioAnalyzerState) override;
-
-    void receive(const std::string& contextId, const std::string& message) override;
+    /// @}
 
     /// @name InteractionModelRequestProcessingObserverInterface Functions
     /// @{
@@ -138,13 +159,13 @@ private:
     /**
      * Sets the internal state to @c IDLE if both @c SpeechSynthesizer and @c AudioInputProcessor are in idle state.
      */
-    void tryEnterIdleState();
+    void executeTryEnterIdleState();
 
     /**
      * An event has occurred which may transition @c DialogUXStateAggregator out of THINKING mode. This function
      * evaluates if the transition is valid and performs the necessary logic to prepare for the transition.
      */
-    void tryExitThinkingState();
+    void executeTryExitThinkingState();
 
     /**
      * Transitions the internal state from THINKING to IDLE.

@@ -18,6 +18,8 @@
 
 #include <tuple>
 
+#include <AVSCommon/Utils/Logger/LoggerUtils.h>
+
 #include "acsdkManufactory/Component.h"
 #include "acsdkManufactory/Manufactory.h"
 #include "acsdkManufactory/internal/Utils.h"
@@ -29,16 +31,16 @@ template <typename... Exports>
 template <typename... Parameters>
 inline std::unique_ptr<Manufactory<Exports...>> Manufactory<Exports...>::create(
     const Component<Parameters...>& component) {
-    static_assert(!internal::HasImport<Parameters...>::value, "Parameters... includes Import<Type>.");
+    static_assert(!internal::HasRequiredImport<Parameters...>::value, "Component has non satisfied Import<Type>.");
 
+    // Check if any export is missing. If missing, assertion will fail and PrintMissingExport will print a compilation
+    // error with the name of the types missing.
     using MissingExports = typename internal::RemoveTypes<std::tuple<Exports...>, std::tuple<Parameters...>>::type;
-
-    ACSDK_STATIC_ASSERT_IS_SAME(
-        std::tuple<>,
-        MissingExports,
-        "Component does not export all types required by Manufactory::create(component).");
+    static_assert(std::tuple_size<MissingExports>() == 0, "Missing export types required by Manufactory::create.");
+    internal::PrintMissingExport<MissingExports>()();
 
     auto cookBook = component.getCookBook();
+    internal::DefaultValues<Parameters...>::apply(cookBook);
     if (!cookBook.checkCompleteness()) {
         return nullptr;
     }
@@ -46,11 +48,35 @@ inline std::unique_ptr<Manufactory<Exports...>> Manufactory<Exports...>::create(
 }
 
 template <typename... Exports>
+template <typename... Superset>
+std::unique_ptr<Manufactory<Exports...>> Manufactory<Exports...>::createSubsetManufactory(
+    const std::shared_ptr<Manufactory<Superset...>>& input) {
+    // Check if any export is missing. If missing, assertion will fail and PrintMissingExport will print a compilation
+    // error with the name of the types missing.
+    using MissingExports = typename internal::RemoveTypes<std::tuple<Exports...>, std::tuple<Superset...>>::type;
+    static_assert(
+        std::tuple_size<MissingExports>() == 0,
+        "Input does not provide all the types to be exported by "
+        "subset manufactory");
+    internal::PrintMissingExport<MissingExports>()();
+
+    if (!input) {
+        avsCommon::utils::logger::acsdkError(
+            avsCommon::utils::logger::LogEntry("Manufactory", "createSubsetManufactoryFailed")
+                .d("reason", "nullSuperSetManufactory"));
+        return nullptr;
+    }
+    return Manufactory<Exports...>::create(input->m_runtimeManufactory);
+}
+
+template <typename... Exports>
 template <typename... Subset>
 inline std::unique_ptr<Manufactory<Subset...>> Manufactory<Exports...>::createSubsetManufactory() {
+    // Check if any export is missing. If missing, assertion will fail and PrintMissingExport will print a compilation
+    // error with the name of the types missing.
     using MissingExports = typename internal::RemoveTypes<std::tuple<Subset...>, std::tuple<Exports...>>::type;
-
-    ACSDK_STATIC_ASSERT_IS_SAME(std::tuple<>, MissingExports, "Manufactory does not export all types in Subset...");
+    static_assert(std::tuple_size<MissingExports>() == 0, "Manufactory does not export all types in Subset...");
+    internal::PrintMissingExport<MissingExports>()();
 
     return Manufactory<Subset...>::create(m_runtimeManufactory);
 }

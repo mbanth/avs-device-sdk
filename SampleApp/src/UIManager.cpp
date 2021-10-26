@@ -141,6 +141,9 @@ static const std::string HELP_MESSAGE =
     "|       Press 'o' followed by Enter at any time to enter the diagnostics     |\n"
     "|       screen.                                                              |\n"
 #endif
+    "| Device Setup Complete:                                                     |\n"
+    "|       Press 'v' followed by Enter at any time to indicate that device      |\n"
+    "|       setup is complete.                                                   |\n"
     "|                                                                            |\n"
     "| Quit:                                                                      |\n"
     "|       Press 'q' followed by Enter at any time to quit the application.     |\n"
@@ -684,6 +687,8 @@ void UIManager::onAuthStateChange(AuthObserverInterface::State newState, AuthObs
         if (m_authState != newState) {
             m_authState = newState;
             switch (m_authState) {
+                case AuthObserverInterface::State::AUTHORIZING:
+                    break;
                 case AuthObserverInterface::State::UNINITIALIZED:
                     break;
                 case AuthObserverInterface::State::REFRESHED:
@@ -730,15 +735,15 @@ void UIManager::onAuthStateChange(AuthObserverInterface::State newState, AuthObs
 }
 
 void UIManager::onCapabilitiesStateChange(
-    CapabilitiesObserverInterface::State newState,
-    CapabilitiesObserverInterface::Error newError,
+    CapabilitiesDelegateObserverInterface::State newState,
+    CapabilitiesDelegateObserverInterface::Error newError,
     const std::vector<avsCommon::sdkInterfaces::endpoints::EndpointIdentifier>& addedOrUpdatedEndpoints,
     const std::vector<avsCommon::sdkInterfaces::endpoints::EndpointIdentifier>& deletedEndpoints) {
     m_executor.submit([this, newState, newError, addedOrUpdatedEndpoints, deletedEndpoints]() {
         // If one of the added or updated endpointIds is the default endpoint, and the
         // add/update failed, go into limited mode.
         // Limited mode is unnecessary if the failure is for non-default endpoints.
-        if (CapabilitiesObserverInterface::State::FATAL_ERROR == newState) {
+        if (CapabilitiesDelegateObserverInterface::State::FATAL_ERROR == newState) {
             auto it = std::find(addedOrUpdatedEndpoints.begin(), addedOrUpdatedEndpoints.end(), m_defaultEndpointId);
             if (addedOrUpdatedEndpoints.end() != it) {
                 std::ostringstream oss;
@@ -757,7 +762,7 @@ void UIManager::onCapabilitiesStateChange(
                     ConsolePrinter::prettyPrint(oss.str());
                 }
             }
-        } else if (CapabilitiesObserverInterface::State::SUCCESS == newState) {
+        } else if (CapabilitiesDelegateObserverInterface::State::SUCCESS == newState) {
             std::ostringstream oss;
             if (!addedOrUpdatedEndpoints.empty()) {
                 oss << "Successfully registered " << addedOrUpdatedEndpoints.size() << " endpoint(s). ";

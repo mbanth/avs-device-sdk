@@ -72,6 +72,8 @@ static const std::string ALERT_EVENT_TYPE_REMINDER_STRING = "REMINDER";
 static const std::string OFFLINE_STOPPED_ALERT_TOKEN_KEY = "token";
 /// The value of the offline stopped alert scheduledTime key.
 static const std::string OFFLINE_STOPPED_ALERT_SCHEDULED_TIME_KEY = "scheduledTime";
+/// The value of the offline stopped alert eventTime key.
+static const std::string OFFLINE_STOPPED_ALERT_EVENT_TIME_KEY = "eventTime";
 /// The value of the offline stopped alert id key.
 static const std::string OFFLINE_STOPPED_ALERT_ID_KEY = "id";
 
@@ -104,7 +106,7 @@ static const int ALERTS_DATABASE_VERSION_ONE = 1;
 /// A symbolic name for version two of our database.
 static const int ALERTS_DATABASE_VERSION_TWO = 2;
 
-/// The name of the alerts table.
+/// The name of the alerts (v1) table.
 static const std::string ALERTS_TABLE_NAME = "alerts";
 
 /// The name of the alerts (v2) table.
@@ -139,9 +141,20 @@ static const std::string CREATE_ALERT_ASSETS_TABLE_SQL_STRING = std::string("CRE
 /// The name of the offline alerts table.
 static const std::string OFFLINE_ALERTS_TABLE_NAME = "offlineAlerts";
 
+/// The name of the offline alerts (v2) table.
+static const std::string OFFLINE_ALERTS_V2_TABLE_NAME = "offlineAlerts_v2";
+
+/// A symbolic name for version one of our offline alerts database.
+static const int OFFLINE_ALERTS_DATABASE_VERSION_ONE = 1;
+/// A symbolic name for version two of our offline alerts database.
+static const int OFFLINE_ALERTS_DATABASE_VERSION_TWO = 2;
+
+/// The SQL string to create the offline alerts table.
+// clang-format off
 static const std::string CREATE_OFFLINE_ALERTS_TABLE_SQL_STRING =
-    std::string("CREATE TABLE ") + OFFLINE_ALERTS_TABLE_NAME + " (" + "id INT PRIMARY KEY NOT NULL," +
-    "token TEXT NOT NULL," + "scheduled_time_iso_8601 TEXT NOT NULL);";
+    std::string("CREATE TABLE ") + OFFLINE_ALERTS_V2_TABLE_NAME + " (" + "id INT PRIMARY KEY NOT NULL," +
+    "token TEXT NOT NULL," + "scheduled_time_iso_8601 TEXT NOT NULL," + "event_time_iso_8601 TEXT NOT NULL);";
+// clang-format on
 
 /// The name of the alertAssetPlayOrderItems table.
 static const std::string ALERT_ASSET_PLAY_ORDER_ITEMS_TABLE_NAME = "alertAssetPlayOrderItems";
@@ -279,6 +292,22 @@ static bool dbFieldToAlertState(int dbState, Alert::State* state) {
 
     ACSDK_ERROR(LX("dbFieldToAlertStateFailed").m("Could not convert db value.").d("db value", dbState));
     return false;
+}
+
+std::shared_ptr<AlertStorageInterface> SQLiteAlertStorage::createAlertStorageInterface(
+    const std::shared_ptr<avsCommon::utils::configuration::ConfigurationNode>& configurationRoot,
+    const std::shared_ptr<avsCommon::sdkInterfaces::audio::AudioFactoryInterface>& audioFactory) {
+    if (!configurationRoot || !audioFactory) {
+        ACSDK_ERROR(LX("createAlertStorageInterfaceFailed")
+                        .d("isConfigurationRootNull", !configurationRoot)
+                        .d("isAudioFactoryNull", !audioFactory));
+        return nullptr;
+    }
+
+    auto alertsAudioFactory = audioFactory->alerts();
+
+    auto storage = create(*configurationRoot, alertsAudioFactory);
+    return std::move(storage);
 }
 
 std::unique_ptr<SQLiteAlertStorage> SQLiteAlertStorage::create(
@@ -432,14 +461,90 @@ bool SQLiteAlertStorage::open() {
     if (!m_db.open()) {
         return false;
     }
-    /// After adding new table for offline alerts, it is possible that during OTA the offline table
-    /// will not exist, so creating here.
-    if (!m_db.tableExists(OFFLINE_ALERTS_TABLE_NAME)) {
-        if (!createOfflineAlertsTable(&m_db)) {
-            ACSDK_ERROR(LX("creatingOfflineAlertsTableFailed").m("Offline Alerts table could not be created."));
+    /// Check if any tables are missing, if they are, add them.
+    if (!m_db.tableExists(ALERTS_V2_TABLE_NAME)) {
+        if (!createAlertsTable(&m_db)) {
+            ACSDK_ERROR(LX("openFailed").m("Alert table could not be created."));
+            close();
             return false;
         }
     }
+    if (!m_db.tableExists(ALERT_ASSETS_TABLE_NAME)) {
+        if (!createAlertAssetsTable(&m_db)) {
+            ACSDK_ERROR(LX("openFailed").m("AlertAssets table could not be created."));
+            close();
+            return false;
+        }
+    }
+    if (!m_db.tableExists(ALERT_ASSET_PLAY_ORDER_ITEMS_TABLE_NAME)) {
+        if (!createAlertAssetPlayOrderItemsTable(&m_db)) {
+            ACSDK_ERROR(LX("openFailed").m("AlertAssetPlayOrderItems table could not be created."));
+            close();
+            return false;
+        }
+    }
+
+    /// Offline alerts table will be created during migration if it does not exist yet.
+    if (!migrateOfflineAlertsDbFromV1ToV2()) {
+        ACSDK_ERROR(LX("openFailed").m("migrateOfflineAlertsDbFromV1ToV2 failed."));
+        close();
+        return false;
+    }
+
+    return true;
+}
+
+bool SQLiteAlertStorage::migrateOfflineAlertsDbFromV1ToV2() {
+    /// Offline alerts table is up-to-date, no need to migrate.
+    if (m_db.tableExists(OFFLINE_ALERTS_V2_TABLE_NAME)) {
+        ACSDK_DEBUG8(LX("migrateOfflineAlertsDbFromV1ToV2").m("Offline alerts v2 table already exists."));
+        return true;
+    }
+
+    if (!createOfflineAlertsTable(&m_db)) {
+        ACSDK_ERROR(LX("migrateOfflineAlertsDbFromV1ToV2Failed").m("Offline alerts v2 table could not be created."));
+        return false;
+    }
+
+    /// Offline alerts v1 table does not exist, nothing to be migrated.
+    if (!m_db.tableExists(OFFLINE_ALERTS_TABLE_NAME)) {
+        ACSDK_DEBUG8(LX("migrateOfflineAlertsDbFromV1ToV2")
+                         .m("Offline alerts v1 table does not exist, nothing to be migrated."));
+        return true;
+    }
+
+    rapidjson::Document offlineAlerts(rapidjson::kObjectType);
+    auto& allocator = offlineAlerts.GetAllocator();
+    rapidjson::Value alertContainer(rapidjson::kArrayType);
+    loadOfflineAlertsHelper(OFFLINE_ALERTS_DATABASE_VERSION_ONE, &alertContainer, allocator);
+    bool isLegacyV1 = isOfflineTableV1Legacy();
+
+    for (const auto& alert : alertContainer.GetArray()) {
+        std::string token = "";
+        if (!avsCommon::utils::json::jsonUtils::retrieveValue(alert, OFFLINE_STOPPED_ALERT_TOKEN_KEY, &token)) {
+            ACSDK_ERROR(
+                LX("migrateOfflineAlertsDbFromV1ToV2Failed").m("Could not retrieve" + OFFLINE_STOPPED_ALERT_TOKEN_KEY));
+            return false;
+        }
+        std::string scheduledTime_ISO_8601 = "";
+        if (!avsCommon::utils::json::jsonUtils::retrieveValue(
+                alert, OFFLINE_STOPPED_ALERT_SCHEDULED_TIME_KEY, &scheduledTime_ISO_8601)) {
+            ACSDK_ERROR(LX("migrateOfflineAlertsDbFromV1ToV2Failed")
+                            .m("Could not retrieve" + OFFLINE_STOPPED_ALERT_SCHEDULED_TIME_KEY));
+            return false;
+        }
+        std::string event_time_iso_8601 = "";
+        if (!isLegacyV1 && !avsCommon::utils::json::jsonUtils::retrieveValue(
+                               alert, OFFLINE_STOPPED_ALERT_EVENT_TIME_KEY, &event_time_iso_8601)) {
+            ACSDK_ERROR(LX("migrateOfflineAlertsDbFromV1ToV2Failed")
+                            .m("Could not retrieve" + OFFLINE_STOPPED_ALERT_EVENT_TIME_KEY));
+            return false;
+        }
+
+        storeOfflineAlertHelper(
+            OFFLINE_ALERTS_DATABASE_VERSION_TWO, token, scheduledTime_ISO_8601, event_time_iso_8601);
+    }
+    ACSDK_DEBUG8(LX("migrateOfflineAlertsDbFromV1ToV2Succeeded"));
     return true;
 }
 
@@ -479,8 +584,17 @@ bool SQLiteAlertStorage::alertExists(const std::string& token) {
     return countValue > 0;
 }
 
-bool SQLiteAlertStorage::offlineAlertExists(const std::string& token) {
-    const std::string sqlString = "SELECT COUNT(*) FROM " + OFFLINE_ALERTS_TABLE_NAME + " WHERE token=?;";
+bool SQLiteAlertStorage::offlineAlertExists(const int dbVersion, const std::string& token) {
+    if (dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_ONE && dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_TWO) {
+        ACSDK_ERROR(LX("offlineAlertExistsFailed").d("Invalid db version", dbVersion));
+        return false;
+    }
+    std::string offlineAlertsTableName = OFFLINE_ALERTS_TABLE_NAME;
+    if (OFFLINE_ALERTS_DATABASE_VERSION_TWO == dbVersion) {
+        offlineAlertsTableName = OFFLINE_ALERTS_V2_TABLE_NAME;
+    }
+
+    const std::string sqlString = "SELECT COUNT(*) FROM " + offlineAlertsTableName + " WHERE token=?;";
     auto statement = m_db.createStatement(sqlString);
 
     if (!statement) {
@@ -720,29 +834,61 @@ bool SQLiteAlertStorage::store(std::shared_ptr<Alert> alert) {
     return true;
 }
 
-bool SQLiteAlertStorage::storeOfflineAlert(const std::string& token, const std::string& scheduledTime) {
-    std::string tableName;
-    std::string sqlString;
+bool SQLiteAlertStorage::storeOfflineAlert(
+    const std::string& token,
+    const std::string& scheduledTime,
+    const std::string& eventTime) {
+    bool success = storeOfflineAlertHelper(OFFLINE_ALERTS_DATABASE_VERSION_TWO, token, scheduledTime, eventTime);
+    if (m_db.tableExists(OFFLINE_ALERTS_TABLE_NAME)) {
+        success &= storeOfflineAlertHelper(OFFLINE_ALERTS_DATABASE_VERSION_ONE, token, scheduledTime, eventTime);
+    }
+    return success;
+}
 
-    if (offlineAlertExists(token)) {
-        ACSDK_ERROR(LX("storeFailed").m("Alert already exists.").d("token", token));
+bool SQLiteAlertStorage::storeOfflineAlertHelper(
+    const int dbVersion,
+    const std::string& token,
+    const std::string& scheduledTime,
+    const std::string& eventTime) {
+    if (dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_ONE && dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_TWO) {
+        ACSDK_ERROR(LX("storeOfflineAlertHelperFailed").d("Invalid db version", dbVersion));
         return false;
     }
 
+    if (offlineAlertExists(dbVersion, token)) {
+        ACSDK_WARN(LX("storeOfflineAlertHelper").m("Offline alert already exists.").d("token", token));
+        return true;
+    }
+
+    std::string offlineAlertsTableName = OFFLINE_ALERTS_TABLE_NAME;
+    if (OFFLINE_ALERTS_DATABASE_VERSION_TWO == dbVersion) {
+        offlineAlertsTableName = OFFLINE_ALERTS_V2_TABLE_NAME;
+    }
+    bool isLegacyV1 = false;
+    if (OFFLINE_ALERTS_DATABASE_VERSION_ONE == dbVersion) {
+        isLegacyV1 = isOfflineTableV1Legacy();
+    }
     // clang-format off
-    tableName = OFFLINE_ALERTS_TABLE_NAME;
-    sqlString = "INSERT INTO " + OFFLINE_ALERTS_TABLE_NAME + " (" +
-                        "id,token,"
-                        "scheduled_time_iso_8601"
-                        ") VALUES (" +
-                        "?,?," +
-                        "?" +
-                        ");";
+    std::string sqlString = "INSERT INTO " +  offlineAlertsTableName + " (" +
+                                    "id, token, scheduled_time_iso_8601, event_time_iso_8601" +
+                                    ") VALUES (" +
+                                    "?, ?, ?, ?" +
+                                    ");";
     // clang-format on
 
+    if (isLegacyV1) {
+        // clang-format off
+        sqlString = "INSERT INTO " + offlineAlertsTableName + " (" +
+                            "id, token, scheduled_time_iso_8601" +
+                            ") VALUES (" +
+                            "?, ?, ?" +
+                            ");";
+        // clang-format on
+    }
+
     int id = 0;
-    if (!getTableMaxIntValue(&m_db, tableName, DATABASE_COLUMN_ID_NAME, &id)) {
-        ACSDK_ERROR(LX("storeFailed").m("Cannot generate alert id."));
+    if (!getTableMaxIntValue(&m_db, offlineAlertsTableName, DATABASE_COLUMN_ID_NAME, &id)) {
+        ACSDK_ERROR(LX("storeOfflineAlertHelperFailed").m("Cannot generate alert id."));
         return false;
     }
     id++;
@@ -750,27 +896,65 @@ bool SQLiteAlertStorage::storeOfflineAlert(const std::string& token, const std::
     auto statement = m_db.createStatement(sqlString);
 
     if (!statement) {
-        ACSDK_ERROR(LX("storeFailed").m("Could not create statement."));
+        ACSDK_ERROR(LX("storeOfflineAlertHelperFailed").m("Could not create statement."));
         return false;
     }
 
     int boundParam = 1;
     auto alertToken = token;
-    auto iso8601 = scheduledTime;
+    auto scheduledTime_ISO = scheduledTime;
+    auto eventTime_ISO = eventTime;
 
     /// If we are offine then we only want to bind a few parameters
     if (!statement->bindIntParameter(boundParam++, id) || !statement->bindStringParameter(boundParam++, alertToken) ||
-        !statement->bindStringParameter(boundParam++, iso8601)) {
-        ACSDK_ERROR(LX("storeFailed").m("Could not bind parameter."));
+        !statement->bindStringParameter(boundParam++, scheduledTime_ISO)) {
+        ACSDK_ERROR(LX("storeOfflineAlertHelperFailed").m("Could not bind parameter."));
+        return false;
+    }
+
+    if ((OFFLINE_ALERTS_DATABASE_VERSION_TWO == dbVersion ||
+         (OFFLINE_ALERTS_DATABASE_VERSION_ONE == dbVersion && !isLegacyV1)) &&
+        !statement->bindStringParameter(boundParam, eventTime_ISO)) {
+        ACSDK_ERROR(LX("storeOfflineAlertHelperFailed").m("Could not bind parameter " + eventTime_ISO));
         return false;
     }
 
     if (!statement->step()) {
-        ACSDK_ERROR(LX("storeFailed").m("Could not perform step."));
+        ACSDK_ERROR(LX("storeOfflineAlertHelperFailed").m("Could not perform step."));
         return false;
     }
 
-    ACSDK_DEBUG9(LX("Successfully stored offline alert"));
+    ACSDK_DEBUG9(LX("Successfully stored offline alert to " + offlineAlertsTableName));
+    return true;
+}
+
+bool SQLiteAlertStorage::isOfflineTableV1Legacy() {
+    if (!m_db.tableExists(OFFLINE_ALERTS_TABLE_NAME)) {
+        ACSDK_DEBUG5(LX("isOfflineTableV1Legacy").m("table does not exist " + OFFLINE_ALERTS_TABLE_NAME));
+        return false;
+    }
+
+    auto statement = m_db.createStatement("PRAGMA table_info(" + OFFLINE_ALERTS_TABLE_NAME + ");");
+    if (!statement || !statement->step()) {
+        ACSDK_ERROR(LX("isOfflineTableV1LegacyFailedFailed").m("null statement or could not perform step"));
+        return false;
+    }
+
+    std::string tableInfoColumnName = "name";
+    std::string targetColumnName = "event_time_iso_8601";
+    while (SQLITE_ROW == statement->getStepResult()) {
+        int columnCount = statement->getColumnCount();
+        for (int i = 0; i < columnCount; i++) {
+            if (statement->getColumnName(i) == tableInfoColumnName) {
+                auto columnName = statement->getColumnText(i);
+                if (targetColumnName == columnName) {
+                    ACSDK_DEBUG5(LX("isOfflineTableV1Legacy").m(targetColumnName + " column exists."));
+                    return false;
+                }
+            }
+        }
+        statement->step();
+    }
     return true;
 }
 
@@ -1027,7 +1211,29 @@ bool SQLiteAlertStorage::load(
 bool SQLiteAlertStorage::loadOfflineAlerts(
     rapidjson::Value* alertContainer,
     rapidjson::Document::AllocatorType& allocator) {
-    const std::string sqlString = "SELECT * FROM " + OFFLINE_ALERTS_TABLE_NAME + ";";
+    return loadOfflineAlertsHelper(OFFLINE_ALERTS_DATABASE_VERSION_TWO, alertContainer, allocator);
+}
+
+bool SQLiteAlertStorage::loadOfflineAlertsHelper(
+    const int dbVersion,
+    rapidjson::Value* alertContainer,
+    rapidjson::Document::AllocatorType& allocator) {
+    if (!alertContainer) {
+        ACSDK_ERROR(LX("loadOfflineAlertsHelperFailed").m("nullAlertContainer"));
+        return false;
+    }
+
+    if (dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_ONE && dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_TWO) {
+        ACSDK_ERROR(LX("loadOfflineAlertsHelperFailed").d("Invalid db version", dbVersion));
+        return false;
+    }
+
+    std::string offlineAlertsTableName = OFFLINE_ALERTS_TABLE_NAME;
+    if (OFFLINE_ALERTS_DATABASE_VERSION_TWO == dbVersion) {
+        offlineAlertsTableName = OFFLINE_ALERTS_V2_TABLE_NAME;
+    }
+
+    const std::string sqlString = "SELECT * FROM " + offlineAlertsTableName + ";";
     ACSDK_DEBUG9(LX("Loading offline alerts"));
 
     auto statement = m_db.createStatement(sqlString);
@@ -1038,8 +1244,9 @@ bool SQLiteAlertStorage::loadOfflineAlerts(
     }
 
     int id = 0;
-    std::string token;
-    std::string scheduledTime_ISO_8601;
+    std::string token = "";
+    std::string scheduledTime_ISO_8601 = "";
+    std::string eventTime_ISO_8601 = "";
 
     if (!statement->step()) {
         ACSDK_ERROR(LX("loadOfflineAlertsFailed").m("Could not perform step."));
@@ -1058,6 +1265,8 @@ bool SQLiteAlertStorage::loadOfflineAlerts(
                 token = statement->getColumnText(i);
             } else if ("scheduled_time_iso_8601" == columnName) {
                 scheduledTime_ISO_8601 = statement->getColumnText(i);
+            } else if ("event_time_iso_8601" == columnName) {
+                eventTime_ISO_8601 = statement->getColumnText(i);
             }
         }
 
@@ -1065,6 +1274,7 @@ bool SQLiteAlertStorage::loadOfflineAlerts(
         alertJson.SetObject();
         alertJson.AddMember(StringRef(OFFLINE_STOPPED_ALERT_TOKEN_KEY), token, allocator);
         alertJson.AddMember(StringRef(OFFLINE_STOPPED_ALERT_SCHEDULED_TIME_KEY), scheduledTime_ISO_8601, allocator);
+        alertJson.AddMember(StringRef(OFFLINE_STOPPED_ALERT_EVENT_TIME_KEY), eventTime_ISO_8601, allocator);
         alertJson.AddMember(StringRef(OFFLINE_STOPPED_ALERT_ID_KEY), id, allocator);
 
         alertContainer->PushBack(alertJson, allocator);
@@ -1157,27 +1367,37 @@ static bool eraseAlert(SQLiteDatabase* db, int alertId) {
  * This function will clean up records in the offline alerts table.
  *
  * @param db The database object.
- * @param alertId The alert id of the alert to be deleted.
+ * @param token The AVS token to identify the alert.
  * @return Whether the delete operation was successful.
  */
-static bool eraseOfflineAlert(SQLiteDatabase* db, int alertId) {
-    const std::string sqlString = "DELETE FROM " + OFFLINE_ALERTS_TABLE_NAME + " WHERE id=?;";
+static bool eraseOfflineAlert(const int dbVersion, SQLiteDatabase* db, const std::string& token) {
+    if (dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_ONE && dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_TWO) {
+        ACSDK_ERROR(LX("eraseOfflineAlertFailed").d("Invalid db version", dbVersion));
+        return false;
+    }
+
+    std::string offlineAlertsTableName = OFFLINE_ALERTS_TABLE_NAME;
+    if (OFFLINE_ALERTS_DATABASE_VERSION_TWO == dbVersion) {
+        offlineAlertsTableName = OFFLINE_ALERTS_V2_TABLE_NAME;
+    }
+
+    const std::string sqlString = "DELETE FROM " + offlineAlertsTableName + " WHERE token=?;";
 
     auto statement = db->createStatement(sqlString);
 
     if (!statement) {
-        ACSDK_ERROR(LX("eraseOfflineAlertByAlertIdFailed").m("Could not create statement."));
+        ACSDK_ERROR(LX("eraseOfflineAlertFailed").m("Could not create statement."));
         return false;
     }
 
     int boundParam = 1;
-    if (!statement->bindIntParameter(boundParam, alertId)) {
-        ACSDK_ERROR(LX("eraseOfflineAlertByAlertIdFailed").m("Could not bind a parameter."));
+    if (!statement->bindStringParameter(boundParam, token)) {
+        ACSDK_ERROR(LX("eraseOfflineAlertFailed").m("Could not bind a parameter."));
         return false;
     }
 
     if (!statement->step()) {
-        ACSDK_ERROR(LX("eraseOfflineAlertByAlertIdFailed").m("Could not perform step."));
+        ACSDK_ERROR(LX("eraseOfflineAlertFailed").m("Could not perform step."));
         return false;
     }
 
@@ -1295,13 +1515,26 @@ bool SQLiteAlertStorage::erase(std::shared_ptr<Alert> alert) {
 }
 
 bool SQLiteAlertStorage::eraseOffline(const std::string& token, int id) {
-    if (!offlineAlertExists(token)) {
-        ACSDK_ERROR(LX("eraseFailed").m("Cannot delete alert - not in database.").d("token", token));
+    bool success = eraseOfflineHelper(OFFLINE_ALERTS_DATABASE_VERSION_TWO, token);
+    if (m_db.tableExists(OFFLINE_ALERTS_TABLE_NAME)) {
+        success &= eraseOfflineHelper(OFFLINE_ALERTS_DATABASE_VERSION_ONE, token);
+    }
+    return success;
+}
+
+bool SQLiteAlertStorage::eraseOfflineHelper(const int dbVersion, const std::string& token) {
+    if (dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_ONE && dbVersion != OFFLINE_ALERTS_DATABASE_VERSION_TWO) {
+        ACSDK_ERROR(LX("eraseOfflineHelperFailed").d("Invalid db version", dbVersion));
         return false;
     }
 
-    if (!eraseOfflineAlert(&m_db, id)) {
-        ACSDK_ERROR(LX("eraseOfflineAlertFailed").m("Could not erase offlineAlerts table items."));
+    if (!offlineAlertExists(dbVersion, token)) {
+        ACSDK_WARN(LX("eraseOfflineHelper").m("Offline alert does not exist.").d("token", token));
+        return true;
+    }
+
+    if (!eraseOfflineAlert(dbVersion, &m_db, token)) {
+        ACSDK_ERROR(LX("eraseOfflineHelperFailed").m("Could not erase offlineAlerts table items."));
         return false;
     }
 
@@ -1337,10 +1570,14 @@ bool SQLiteAlertStorage::bulkErase(const std::list<std::shared_ptr<Alert>>& aler
 }
 
 bool SQLiteAlertStorage::clearDatabase() {
-    const std::vector<std::string> tablesToClear = {ALERTS_V2_TABLE_NAME,
-                                                    ALERT_ASSETS_TABLE_NAME,
-                                                    ALERT_ASSET_PLAY_ORDER_ITEMS_TABLE_NAME,
-                                                    OFFLINE_ALERTS_TABLE_NAME};
+    std::vector<std::string> tablesToClear = {ALERTS_V2_TABLE_NAME,
+                                              ALERT_ASSETS_TABLE_NAME,
+                                              ALERT_ASSET_PLAY_ORDER_ITEMS_TABLE_NAME,
+                                              OFFLINE_ALERTS_V2_TABLE_NAME};
+    if (m_db.tableExists(OFFLINE_ALERTS_TABLE_NAME)) {
+        tablesToClear.push_back(OFFLINE_ALERTS_TABLE_NAME);
+    }
+
     for (auto& tableName : tablesToClear) {
         if (!m_db.clearTable(tableName)) {
             ACSDK_ERROR(LX("clearDatabaseFailed").d("could not clear table", tableName));

@@ -1,5 +1,5 @@
 #
-# Copyright 2018-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright 2018-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -56,25 +56,28 @@ then
         -DPORTAUDIO_LIB_PATH="$THIRD_PARTY_PATH/portaudio/lib/.libs/libportaudio.$LIB_SUFFIX" \
         -DPORTAUDIO_INCLUDE_DIR="$THIRD_PARTY_PATH/portaudio/include" \
         -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=$THIRD_PARTY_PATH/alexa-rpi/lib/libsnsr.a \
-        -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$THIRD_PARTY_PATH/alexa-rpi/include)
+        -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$THIRD_PARTY_PATH/alexa-rpi/include \
+        -DCURL_INCLUDE_DIR=${THIRD_PARTY_PATH}/curl-${CURL_VER}/include \
+        -DCURL_LIBRARY=${THIRD_PARTY_PATH}/curl-${CURL_VER}/lib/.libs/libcurl.so)
 else
     CMAKE_PLATFORM_SPECIFIC=(-DGPIO_KEY_WORD_DETECTOR=ON \
         -DGSTREAMER_MEDIA_PLAYER=ON -DPORTAUDIO=ON \
         -DPORTAUDIO_LIB_PATH="$THIRD_PARTY_PATH/portaudio/lib/.libs/libportaudio.$LIB_SUFFIX" \
-        -DPORTAUDIO_INCLUDE_DIR="$THIRD_PARTY_PATH/portaudio/include")
+        -DPORTAUDIO_INCLUDE_DIR="$THIRD_PARTY_PATH/portaudio/include" \
+        -DCURL_INCLUDE_DIR=${THIRD_PARTY_PATH}/curl-${CURL_VER}/include \
+        -DCURL_LIBRARY=${THIRD_PARTY_PATH}/curl-${CURL_VER}/lib/.libs/libcurl.so)
 fi
 
-SENSORY_MODEL_HASH=5d811d92fb89043f4a4a7b7d0d26d7c3c83899b0
 GSTREAMER_AUDIO_SINK="alsasink"
 
 install_dependencies() {
   sudo apt-get update
-  sudo apt-get -y install git gcc cmake build-essential libsqlite3-dev libcurl4-openssl-dev libssl-dev libfaad-dev libsoup2.4-dev libgcrypt20-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-good libasound2-dev sox gedit vim python3-pip
-  pip install flask commentjson
+  sudo apt-get -y install git gcc cmake build-essential libsqlite3-dev libssl-dev libnghttp2-dev libfaad-dev libsoup2.4-dev libgcrypt20-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-good libasound2-dev sox gedit vim
 }
 
 run_os_specifics() {
   build_port_audio
+  build_curl
   if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
   then
     build_kwd_engine
@@ -115,6 +118,20 @@ build_kwd_engine() {
   git checkout $SENSORY_MODEL_HASH -- models/spot-alexa-rpi-31000.snsr
   popd > /dev/null
   bash ./alexa-rpi/bin/license.sh
+}
+
+build_curl() {
+  #get curl and build
+  echo
+  echo "==============> CLONING AND BUILDING CURL =============="
+  echo
+
+  cd $THIRD_PARTY_PATH
+  wget ${CURL_DOWNLOAD_URL}
+  tar xzf curl-${CURL_VER}.tar.gz
+  cd curl-${CURL_VER}
+  ./configure --with-nghttp2 --prefix=${THIRD_PARTY_PATH}/curl-${CURL_VER} --with-ssl
+  make
 }
 
 generate_start_script() {

@@ -20,19 +20,32 @@
 #include <unordered_set>
 #include <vector>
 
+#include <acsdkBluetoothInterfaces/BluetoothStorageInterface.h>
 #include <AVSCommon/Utils/Configuration/ConfigurationNode.h>
-
-#include "acsdkBluetooth/BluetoothStorageInterface.h"
+#include <SQLiteStorage/SQLiteDatabase.h>
+#include <SQLiteStorage/SQLiteStatement.h>
+#include <SQLiteStorage/SQLiteUtils.h>
 
 namespace alexaClientSDK {
 namespace acsdkBluetooth {
 
 /// A concrete implementation of @c BluetoothStorageInterface using SQLite.
-class SQLiteBluetoothStorage : public BluetoothStorageInterface {
+class SQLiteBluetoothStorage : public acsdkBluetoothInterfaces::BluetoothStorageInterface {
 public:
+    /**
+     * Create an instance of a @c BluetoothStorageInterface object.
+     *
+     * @param configurationRoot A shared pointer to a ConfigurationNode containing the location of the .db file.
+     * Should take the form:
+     * "bluetooth" : { "databaseFilePath" : "<filePath>" }
+     */
+    static std::shared_ptr<BluetoothStorageInterface> createBluetoothStorageInterface(
+        const std::shared_ptr<avsCommon::utils::configuration::ConfigurationNode>& configurationRoot);
+
     /**
      * Create an instance of a SQLiteBluetoothStorage object.
      *
+     * @deprecated
      * @param configurationRoot A ConfigurationNode containing the location of the .db file.
      * Should take the form:
      * "bluetooth" : { "databaseFilePath" : "<filePath>" }
@@ -66,6 +79,11 @@ private:
      * @param filepath The filepath of the sqlite file.
      */
     SQLiteBluetoothStorage(const std::string& filepath);
+
+    /**
+     * Closes the SQLiteDatabase instance. This must be called with @c m_mutex obtained.
+     */
+    void closeLocked();
 
     /**
      * Utility that extracts a row from the database using a given statement. The lock must be obtained

@@ -39,6 +39,7 @@
 #include "MockPostConnect.h"
 #include "MockPostConnectFactory.h"
 #include "MockTransportObserver.h"
+#include "TestMessageRequestObserver.h"
 
 #include "ACL/Transport/SynchronizedMessageRequestQueue.h"
 
@@ -56,6 +57,7 @@ using namespace avsCommon::utils::http;
 using namespace avsCommon::utils::http2;
 using namespace avsCommon::utils::http2::test;
 using namespace avsCommon::utils::metrics::test;
+using namespace avsCommon::utils::observer::test;
 using namespace ::testing;
 
 /// Test AVS Gateway.
@@ -227,34 +229,6 @@ protected:
 
     /// A promise that the @c TransportObserver.onConnected() will be called.
     PromiseFuturePair<void> m_transportConnected;
-};
-
-/**
- *  A @c MessageRequestObserverInterface implementation used in this test.
- */
-class TestMessageRequestObserver : public avsCommon::sdkInterfaces::MessageRequestObserverInterface {
-public:
-    /*
-     * Called when a message request has been processed by AVS.
-     */
-    void onSendCompleted(MessageRequestObserverInterface::Status status) {
-        m_status.setValue(status);
-    }
-
-    /*
-     * Called when an exception is thrown when trying to send a message to AVS.
-     */
-    void onExceptionReceived(const std::string& exceptionMessage) {
-        m_exception.setValue(exceptionMessage);
-    }
-
-    /// A promise that @c MessageRequestObserverInterface::onSendCompleted() will be called  with a @c
-    /// MessageRequestObserverInterface::Status value
-    PromiseFuturePair<MessageRequestObserverInterface::Status> m_status;
-
-    /// A promise that @c MessageRequestObserverInterface::onExceptionReceived() will be called  with an exception
-    /// message
-    PromiseFuturePair<std::string> m_exception;
 };
 
 void HTTP2TransportTest::SetUp() {
@@ -975,8 +949,14 @@ TEST_F(HTTP2TransportTest, test_onSendCompletedNotification) {
     // Check that we got the right onSendCompleted notifications.
     for (unsigned messageNum = 0; messageNum < messagesCount; messageNum++) {
         if (messageObservers[messageNum]->m_status.waitFor(RESPONSE_TIMEOUT)) {
-            auto expectedMessageObserverStatus = std::get<2>(messageResponseMap[messageNum]);
-            ASSERT_EQ(messageObservers[messageNum]->m_status.getValue(), expectedMessageObserverStatus);
+            auto& item = messageResponseMap[messageNum];
+            auto responseCode = std::get<0>(item);
+            auto responseFinished = std::get<1>(item);
+            auto expectedMessageObserverStatus = std::get<2>(item);
+            ASSERT_EQ(messageObservers[messageNum]->m_status.getValue(), expectedMessageObserverStatus)
+                << "messageNum=" << messageNum << " responseCode=" << responseCode
+                << " responseFinished=" << responseFinished
+                << " expectedMessageObserverStatus=" << expectedMessageObserverStatus;
         }
     }
 }
