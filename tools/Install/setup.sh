@@ -57,8 +57,8 @@ UNIT_TEST_MODEL_PATH="$INSTALL_BASE/avs-device-sdk/KWD/inputs/SensoryModels/"
 UNIT_TEST_MODEL="$THIRD_PARTY_PATH/alexa-rpi/models/spot-alexa-rpi-31000.snsr"
 INPUT_CONFIG_FILE="$SOURCE_PATH/avs-device-sdk/Integration/AlexaClientSDKConfig.json"
 OUTPUT_CONFIG_FILE="$BUILD_PATH/Integration/AlexaClientSDKConfig.json"
-TEMP_CONFIG_FILE="$BUILD_PATH/Integration/tmp_AlexaClientSDKConfig.json"
-TEMP_TEXT_FILE="$BUILD_PATH/Integration/tmp_append_lines.txt"
+TEMP_CONFIG_FILE="$BUILD_PATH/Integration/temp_AlexaClientSDKConfig.json"
+TEMP_TEXT_FILE="$BUILD_PATH/Integration/temp_append_lines.txt"
 TEST_SCRIPT="$INSTALL_BASE/test.sh"
 LIB_SUFFIX="a"
 ANDROID_CONFIG_FILE=""
@@ -425,7 +425,7 @@ CUSTOMTAB="    "
 append_lines_str="${CUSTOMTAB}${CUSTOMTAB}\"portAudio\":{\n${CUSTOMTAB}${CUSTOMTAB}${CUSTOMTAB}\"suggestedLatency\": 0.150\n${CUSTOMTAB}${CUSTOMTAB}}"
 
 # Save string with multiple lines in a file, so that it can be appended in the json file
-echo -e "$append_lines_str" > append_lines.txt
+echo -e "$append_lines_str" > $TEMP_TEXT_FILE
 
 # Replace and append text
 sed -i -e "/displayCardsSupported/s/$/,/" $OUTPUT_CONFIG_FILE
