@@ -58,6 +58,7 @@ UNIT_TEST_MODEL="$THIRD_PARTY_PATH/alexa-rpi/models/spot-alexa-rpi-31000.snsr"
 INPUT_CONFIG_FILE="$SOURCE_PATH/avs-device-sdk/Integration/AlexaClientSDKConfig.json"
 OUTPUT_CONFIG_FILE="$BUILD_PATH/Integration/AlexaClientSDKConfig.json"
 TEMP_CONFIG_FILE="$BUILD_PATH/Integration/tmp_AlexaClientSDKConfig.json"
+TEMP_TEXT_FILE="$BUILD_PATH/Integration/tmp_append_lines.txt"
 TEST_SCRIPT="$INSTALL_BASE/test.sh"
 LIB_SUFFIX="a"
 ANDROID_CONFIG_FILE=""
@@ -419,13 +420,20 @@ bash genConfig.sh config.json $DEVICE_SERIAL_NUMBER $CONFIG_DB_PATH $SOURCE_PATH
 awk -v config="$GSTREAMER_CONFIG" 'NR==1,/{/{sub(/{/,config)}1' $TEMP_CONFIG_FILE > $OUTPUT_CONFIG_FILE
 
 # Enable the suggestedLatency parameter for portAudio
-sed -i -e '/displayCardsSupported/s/$/,/' $OUTPUT_CONFIG_FILE
-sed -i -e '/portAudio/s/\/\///' $OUTPUT_CONFIG_FILE
-# the sed command below will remove the // on two consecutive lines
-sed -i -e '/suggestedLatency/{N;s/\/\///g;}' $OUTPUT_CONFIG_FILE
+# Generate the lines to append
+CUSTOMTAB="    "
+append_lines_str="${CUSTOMTAB}${CUSTOMTAB}\"portAudio\":{\n${CUSTOMTAB}${CUSTOMTAB}${CUSTOMTAB}\"suggestedLatency\": 0.150\n${CUSTOMTAB}${CUSTOMTAB}}"
 
-# Delete temp file
-# rm $TEMP_CONFIG_FILE
+# Save string with multiple lines in a file, so that it can be appended in the json file
+echo -e "$append_lines_str" > append_lines.txt
+
+# Replace and append text
+sed -i -e "/displayCardsSupported/s/$/,/" $OUTPUT_CONFIG_FILE
+sed -i -e "/displayCardsSupported/r ${TEMP_TEXT_FILE}" $OUTPUT_CONFIG_FILE
+
+# Delete temp files
+rm $TEMP_TEXT_FILE
+rm $TEMP_CONFIG_FILE
 
 echo
 echo "==============> FINAL CONFIGURATION AND ALIASES =============="
