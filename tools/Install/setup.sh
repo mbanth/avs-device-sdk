@@ -386,13 +386,17 @@ then
   cd $BUILD_PATH
 # remove -j2 option to allow building in Raspberry Pi3
   make SampleApp
-  make PreviewAlexaClient
+  # The PreviewAlexaClient is intended only for integrating the manufactory into the SDK
+  # It is not used bv the XMOS EVK and it currently doesn't build on RPi3
+  # make PreviewAlexaClient
 
 else
   cd $BUILD_PATH
 # remove -j2 option to allow building in Raspberry Pi3
   make SampleApp
-  make PreviewAlexaClient
+  # The PreviewAlexaClient is intended only for integrating the manufactory into the SDK
+  # It is not used bv the XMOS EVK and it currently doesn't build on RPi3
+  # make PreviewAlexaClient
 fi
 
 echo
