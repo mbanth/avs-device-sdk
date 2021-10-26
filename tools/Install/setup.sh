@@ -425,7 +425,7 @@ sed -i -e '/portAudio/s/\/\///' $OUTPUT_CONFIG_FILE
 sed -i -e '/suggestedLatency/{N;s/\/\///g;}' $OUTPUT_CONFIG_FILE
 
 # Delete temp file
-rm $TEMP_CONFIG_FILE
+# rm $TEMP_CONFIG_FILE
 
 echo
 echo "==============> FINAL CONFIGURATION AND ALIASES =============="
