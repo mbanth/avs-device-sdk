@@ -44,7 +44,7 @@ static const int GPIO_PIN = 2;
 
 /// Number of m_maxSamplesPerPush * KW_REWIND_SAMPLES to rewind when WW is detected on GPIO
 // m_maxSamplesPerPush is 10ms
-static const size_t KW_REWIND_SAMPLES = 100;
+static const size_t KW_REWIND_SAMPLES = 10;
 
 /// Wakeword string
 static const std::string WAKEWORD_STRING = "alexa";
