@@ -190,7 +190,7 @@ void GPIOKeywordDetector::detectionLoop() {
     m_beginIndexOfStreamReader = m_streamReader->tell();
     notifyKeyWordDetectorStateObservers(KeyWordDetectorStateObserverInterface::KeyWordDetectorState::ACTIVE);
     std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
-
+    int oldGpioValue = HIGH;
     while (!m_isShuttingDown) {
         bool didErrorOccur = false;
         auto wordsRead = readFromStream(
@@ -214,10 +214,11 @@ void GPIOKeywordDetector::detectionLoop() {
             m_beginIndexOfStreamReader = m_streamReader->tell();
         } else if (wordsRead > 0) {
             // Words were successfully read.
-            // check gpio value
+            // Read gpio value
             int gpioValue = digitalRead(GPIO_PIN);
 
-            if (gpioValue == LOW)
+            // Check if GPIO pin is changing from high to low
+            if (gpioValue == LOW && oldGpioValue == HIGH)
             {
                 ACSDK_INFO(LX("WW detected"));
                 notifyKeyWordObservers(
@@ -227,6 +228,7 @@ void GPIOKeywordDetector::detectionLoop() {
                     (m_streamReader->tell() < (m_maxSamplesPerPush*KW_REWIND_SAMPLES) ? 0 : m_streamReader->tell() - (m_maxSamplesPerPush*KW_REWIND_SAMPLES)),
                     m_streamReader->tell());
             }
+            oldGpioValue = gpioValue;
         }
     }
     m_streamReader->close();
