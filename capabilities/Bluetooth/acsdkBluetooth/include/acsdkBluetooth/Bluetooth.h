@@ -16,6 +16,7 @@
 #ifndef ACSDKBLUETOOTH_BLUETOOTH_H_
 #define ACSDKBLUETOOTH_BLUETOOTH_H_
 
+#include <atomic>
 #include <deque>
 #include <functional>
 #include <map>
@@ -24,6 +25,13 @@
 #include <queue>
 #include <unordered_set>
 
+#include <acsdkApplicationAudioPipelineFactoryInterfaces/ApplicationAudioPipelineFactoryInterface.h>
+#include <acsdkBluetoothInterfaces/BluetoothNotifierInterface.h>
+#include <acsdkBluetoothInterfaces/BluetoothDeviceConnectionRulesProviderInterface.h>
+#include <acsdkBluetoothInterfaces/BluetoothDeviceObserverInterface.h>
+#include <acsdkBluetoothInterfaces/BluetoothStorageInterface.h>
+#include <acsdkManufactory/Annotated.h>
+#include <acsdkShutdownManagerInterfaces/ShutdownNotifierInterface.h>
 #include <AVSCommon/AVS/Attachment/InProcessAttachment.h>
 #include <AVSCommon/AVS/AVSDirective.h>
 #include <AVSCommon/AVS/CapabilityAgent.h>
@@ -31,16 +39,19 @@
 #include <AVSCommon/AVS/ExceptionErrorType.h>
 #include <AVSCommon/AVS/FocusState.h>
 #include <AVSCommon/AVS/Requester.h>
-#include <AVSCommon/SDKInterfaces/Bluetooth/BluetoothDeviceConnectionRuleInterface.h>
-#include <AVSCommon/SDKInterfaces/Bluetooth/BluetoothDeviceInterface.h>
-#include <AVSCommon/SDKInterfaces/Bluetooth/BluetoothDeviceManagerInterface.h>
-#include <AVSCommon/SDKInterfaces/Bluetooth/Services/AVRCPTargetInterface.h>
+#include <AVSCommon/SDKInterfaces/AudioFocusAnnotation.h>
 #include <AVSCommon/SDKInterfaces/CapabilityConfigurationInterface.h>
 #include <AVSCommon/SDKInterfaces/ChannelVolumeInterface.h>
 #include <AVSCommon/SDKInterfaces/ContextManagerInterface.h>
 #include <AVSCommon/SDKInterfaces/ContextRequesterInterface.h>
 #include <AVSCommon/SDKInterfaces/FocusManagerInterface.h>
 #include <AVSCommon/SDKInterfaces/MessageSenderInterface.h>
+#include <AVSCommon/SDKInterfaces/Bluetooth/BluetoothDeviceConnectionRuleInterface.h>
+#include <AVSCommon/SDKInterfaces/Bluetooth/BluetoothDeviceInterface.h>
+#include <AVSCommon/SDKInterfaces/Bluetooth/BluetoothDeviceManagerInterface.h>
+#include <AVSCommon/SDKInterfaces/Bluetooth/Services/AVRCPTargetInterface.h>
+#include <AVSCommon/SDKInterfaces/Endpoints/DefaultEndpointAnnotation.h>
+#include <AVSCommon/SDKInterfaces/Endpoints/EndpointCapabilitiesRegistrarInterface.h>
 #include <AVSCommon/Utils/Bluetooth/BluetoothEventBus.h>
 #include <AVSCommon/Utils/Bluetooth/BluetoothEvents.h>
 #include <AVSCommon/Utils/Bluetooth/DeviceCategory.h>
@@ -51,15 +62,16 @@
 #include <AVSCommon/Utils/Bluetooth/FormattedAudioStreamAdapter.h>
 #include <AVSCommon/Utils/Threading/Executor.h>
 #include <RegistrationManager/CustomerDataHandler.h>
-#include <RegistrationManager/CustomerDataManager.h>
+#include <RegistrationManager/CustomerDataManagerInterface.h>
 
 #include "acsdkBluetooth/BluetoothEventState.h"
 #include "acsdkBluetooth/BluetoothMediaInputTransformer.h"
-#include "acsdkBluetooth/BluetoothStorageInterface.h"
-#include "acsdkBluetoothInterfaces/BluetoothDeviceObserverInterface.h"
 
 namespace alexaClientSDK {
 namespace acsdkBluetooth {
+
+/// String to identify the Bluetooth media player to render audio.
+static const constexpr char* BLUETOOTH_MEDIA_PLAYER_NAME = "BluetoothMediaPlayer";
 
 /**
  * The Bluetooth Capability Agent is responsible for implementing the Bluetooth AVS interface. This consists
@@ -139,6 +151,9 @@ public:
      * An enum that represents how the Bluetooth class expects to lose focus.
      */
     enum class FocusTransitionState {
+        /// No focus transition in progress,
+        NONE,
+
         /// Focus in Bluetooth class is lost because it explicitly released focus.
         INTERNAL,
 
@@ -189,36 +204,47 @@ public:
     };
 
     /**
-     * Creates an instance of the Bluetooth capability agent.
+     * Creates an instance of the @c Bluetooth.
      *
      * @param contextManager Responsible for managing the context.
-     * @param focusManager Responsible for managing the focus.
      * @param messageSender Responsible for sending events to AVS.
      * @param exceptionEncounteredSender Responsible for sending exceptions to AVS.
      * @param bluetoothStorage The storage component for the Bluetooth CA.
      * @param deviceManager Responsible for management of Bluetooth devices.
      * @param eventBus A bus to abstract Bluetooth stack specific messages.
-     * @param mediaPlayer The Media Player which will handle playback.
      * @param customerDataManager Object that will track the CustomerDataHandler.
+     * @param audioPipelineFactory Object to create a Bluetooth media player and related interfaces.
+     * @param audioFocusManager Responsible for managing the focus.
+     * @param shutdownNotifier Object that will notify this CA when it is time to shut down.
+     * @param endpointCapabilitiesRegistrar The default endpoint registrar with which this CA will register its
+     * capabilities.
      * @param enabledConnectionRules The set of devices connection rules enabled by the Bluetooth stack from
      * customers.
-     * @param bluetoothChannelVolumeInterface The @c ChannelVolumeInterface used to control bluetooth channel volume
      * @param mediaInputTransformer Transforms incoming Media commands if supported.
+     * @param bluetoothNotifier The object with which to notify observers of Bluetooth device connections or
+     * disconnects.
      */
-    static std::shared_ptr<Bluetooth> create(
+    static std::shared_ptr<Bluetooth> createBluetoothCapabilityAgent(
         std::shared_ptr<avsCommon::sdkInterfaces::ContextManagerInterface> contextManager,
-        std::shared_ptr<avsCommon::sdkInterfaces::FocusManagerInterface> focusManager,
         std::shared_ptr<avsCommon::sdkInterfaces::MessageSenderInterface> messageSender,
         std::shared_ptr<avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface> exceptionEncounteredSender,
-        std::shared_ptr<BluetoothStorageInterface> bluetoothStorage,
-        std::unique_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceManagerInterface> deviceManager,
+        std::shared_ptr<acsdkBluetoothInterfaces::BluetoothStorageInterface> bluetoothStorage,
+        std::shared_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceManagerInterface> deviceManager,
         std::shared_ptr<avsCommon::utils::bluetooth::BluetoothEventBus> eventBus,
-        std::shared_ptr<avsCommon::utils::mediaPlayer::MediaPlayerInterface> mediaPlayer,
-        std::shared_ptr<registrationManager::CustomerDataManager> customerDataManager,
-        std::unordered_set<std::shared_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceConnectionRuleInterface>>
-            enabledConnectionRules,
-        std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface> bluetoothChannelVolumeInterface,
-        std::shared_ptr<BluetoothMediaInputTransformer> mediaInputTransformer = nullptr);
+        std::shared_ptr<registrationManager::CustomerDataManagerInterface> customerDataManager,
+        std::shared_ptr<acsdkApplicationAudioPipelineFactoryInterfaces::ApplicationAudioPipelineFactoryInterface>
+            audioPipelineFactory,
+        acsdkManufactory::Annotated<
+            avsCommon::sdkInterfaces::AudioFocusAnnotation,
+            avsCommon::sdkInterfaces::FocusManagerInterface> audioFocusManager,
+        std::shared_ptr<acsdkShutdownManagerInterfaces::ShutdownNotifierInterface> shutdownNotifier,
+        acsdkManufactory::Annotated<
+            avsCommon::sdkInterfaces::endpoints::DefaultEndpointAnnotation,
+            avsCommon::sdkInterfaces::endpoints::EndpointCapabilitiesRegistrarInterface> endpointCapabilitiesRegistrar,
+        std::shared_ptr<acsdkBluetoothInterfaces::BluetoothDeviceConnectionRulesProviderInterface>
+            connectionRulesProvider,
+        std::shared_ptr<BluetoothMediaInputTransformer> mediaInputTransformer,
+        std::shared_ptr<acsdkBluetoothInterfaces::BluetoothNotifierInterface> bluetoothNotifier);
 
     /// @name CapabilityAgent Functions
     /// @{
@@ -271,21 +297,6 @@ public:
     /// @{
     void clearData() override;
     /// @}
-
-    /**
-     * Adds a bluetooth device observer.
-     *
-     * @param observer The @c BluetoothDeviceObserverInterface to add.
-     */
-    void addObserver(std::shared_ptr<ObserverInterface> observer);
-
-    /**
-     * Removes a bluetooth device observer.
-     *
-     * @param observer The @c BluetoothDeviceObserverInterface to remove.
-     */
-    void removeObserver(std::shared_ptr<ObserverInterface> observer);
-
 protected:
     /// @name BluetoothEventBusListenerInterface Functions
     /// @{
@@ -310,21 +321,24 @@ private:
      * @param bluetoothChannelVolumeInterface Responsible for Volume Control/Attenuation of the underlying
      * SpeakerInterface
      * @param mediaInputTransformer Transforms incoming Media commands.
+     * @param bluetoothNotifier The object with which to notify observers of Bluetooth device connections or
+     * disconnects.
      */
     Bluetooth(
         std::shared_ptr<avsCommon::sdkInterfaces::ContextManagerInterface> contextManager,
         std::shared_ptr<avsCommon::sdkInterfaces::FocusManagerInterface> focusManager,
         std::shared_ptr<avsCommon::sdkInterfaces::MessageSenderInterface> messageSender,
         std::shared_ptr<avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface> exceptionEncounteredSender,
-        std::shared_ptr<BluetoothStorageInterface> bluetoothStorage,
-        std::unique_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceManagerInterface>& deviceManager,
+        std::shared_ptr<acsdkBluetoothInterfaces::BluetoothStorageInterface> bluetoothStorage,
+        std::shared_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceManagerInterface> deviceManager,
         std::shared_ptr<avsCommon::utils::bluetooth::BluetoothEventBus> eventBus,
         std::shared_ptr<avsCommon::utils::mediaPlayer::MediaPlayerInterface> mediaPlayer,
-        std::shared_ptr<registrationManager::CustomerDataManager> customerDataManager,
+        std::shared_ptr<registrationManager::CustomerDataManagerInterface> customerDataManager,
         std::unordered_set<std::shared_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceConnectionRuleInterface>>
             enabledConnectionRules,
         std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface> bluetoothChannelVolumeInterface,
-        std::shared_ptr<BluetoothMediaInputTransformer> mediaInputTransformer);
+        std::shared_ptr<BluetoothMediaInputTransformer> mediaInputTransformer,
+        std::shared_ptr<acsdkBluetoothInterfaces::BluetoothNotifierInterface> bluetoothNotifier);
 
     /**
      * Initializes the agent.
@@ -989,7 +1003,7 @@ private:
     std::shared_ptr<avsCommon::utils::mediaPlayer::MediaPlayerInterface> m_mediaPlayer;
 
     /// Used to persist data necessary for Bluetooth. This includes UUID, MAC, and connection order.
-    std::shared_ptr<BluetoothStorageInterface> m_db;
+    std::shared_ptr<acsdkBluetoothInterfaces::BluetoothStorageInterface> m_db;
 
     /// An eventbus used to abstract Bluetooth stack specific messages.
     std::shared_ptr<avsCommon::utils::bluetooth::BluetoothEventBus> m_eventBus;
@@ -1009,9 +1023,6 @@ private:
     /// A reader that reads the InProcessAttachment.
     std::shared_ptr<avsCommon::avs::attachment::AttachmentReader> m_mediaAttachmentReader;
 
-    /// Set of bluetooth device observers that will get notified on connects or disconnects.
-    std::unordered_set<std::shared_ptr<ObserverInterface>> m_observers;
-
     /// Map of <DeviceCategory, BluetoothDeviceConnectionRuleInterface> device connection rules
     std::map<
         DeviceCategory,
@@ -1028,6 +1039,12 @@ private:
     /// A ChannelVolumeInterface that handles Volume Settings / Volume Attenuation for the underlying Bluetooth
     /// SpeakerInterface
     std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface> m_bluetoothChannelVolumeInterface;
+
+    /// The object to notify of Bluetooth device connections or disconnections.
+    std::shared_ptr<acsdkBluetoothInterfaces::BluetoothNotifierInterface> m_bluetoothNotifier;
+
+    /// counter to track the number of pending focus requests/releases
+    std::atomic<uint8_t> m_pendingFocusTransitions;
 
     /// An executor used for serializing requests on the Bluetooth agent's own thread of execution.
     avsCommon::utils::threading::Executor m_executor;
@@ -1075,6 +1092,8 @@ inline std::ostream& operator<<(std::ostream& stream, const Bluetooth::Streaming
  */
 inline std::string focusTransitionStateToString(Bluetooth::FocusTransitionState state) {
     switch (state) {
+        case Bluetooth::FocusTransitionState::NONE:
+            return "NONE";
         case Bluetooth::FocusTransitionState::INTERNAL:
             return "INTERNAL";
         case Bluetooth::FocusTransitionState::PENDING_INTERNAL:

@@ -39,9 +39,16 @@ namespace speechencoder {
 class OpusEncoderContext : public EncoderContext {
 public:
     /**
+     * Factory method.
+     *
+     * @return A @c std::shared_ptr to a new @c EncoderContext.
+     */
+    static std::shared_ptr<EncoderContext> createEncoderContext();
+
+    /**
      * Constructor.
      */
-    OpusEncoderContext() = default;
+    OpusEncoderContext();
 
     /**
      * Destructor.

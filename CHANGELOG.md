@@ -1,7 +1,21 @@
 ## ChangeLog
 
+### Version 1.25.0 - August 23 2021
+Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal](https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)
+
+**XMOS-only change** - version 0: add support for KWD using GPIO INT_N pin. This will be an alternative to using the Sensory KWD.
+
+### Version 1.24.0 - June 1 2021
+Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal](https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)
+
+### Version 1.23.0 - March 29 2021
+Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal](https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)
+
+### Version 1.22.0 - December 8 2020
+Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal](https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)
+
 ### Version 1.21.0 - October 26 2020
-Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal].(https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)
+Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal](https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)
 
 ### Version 1.20.1 - August 6 2020
 Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal](https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)

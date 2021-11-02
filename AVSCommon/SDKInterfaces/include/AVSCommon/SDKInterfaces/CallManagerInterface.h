@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 
+#include <AVSCommon/AVS/CapabilityAgent.h>
 #include <AVSCommon/SDKInterfaces/AVSGatewayObserverInterface.h>
 #include <AVSCommon/SDKInterfaces/CallStateObserverInterface.h>
 #include <AVSCommon/SDKInterfaces/ConnectionStatusObserverInterface.h>
@@ -30,6 +31,7 @@ namespace alexaClientSDK {
 namespace avsCommon {
 namespace sdkInterfaces {
 
+class DtmfObserverInterface;
 /**
  * This class provides an interface to the @c CallManager.
  */
@@ -89,6 +91,20 @@ public:
     virtual void removeObserver(std::shared_ptr<avsCommon::sdkInterfaces::CallStateObserverInterface> observer) = 0;
 
     /**
+     * Adds a DtmfObserver to the group of observers.
+     *
+     * @param observer The observer to add.
+     */
+    virtual void addDtmfObserver(std::shared_ptr<DtmfObserverInterface> observer);
+
+    /**
+     * Removes a DtmfObserver from the group of observers.
+     *
+     * @param observer The observer to remove.
+     */
+    virtual void removeDtmfObserver(std::shared_ptr<DtmfObserverInterface> observer);
+
+    /**
      * Accepts an incoming call.
      */
     virtual void acceptCall() = 0;
@@ -116,6 +132,16 @@ public:
     virtual void unmuteSelf() = 0;
 
     /**
+     * Enable the video of local device in an active call.
+     */
+    virtual void enableVideo();
+
+    /**
+     * Disable the video of local device in an active call.
+     */
+    virtual void disableVideo();
+
+    /**
      * Check if the call is muted.
      *
      * @return Whether the call is muted.
@@ -129,6 +155,22 @@ inline CallManagerInterface::CallManagerInterface(
     std::shared_ptr<sdkInterfaces::ExceptionEncounteredSenderInterface> exceptionEncounteredSender) :
         utils::RequiresShutdown{objectName},
         avsCommon::avs::CapabilityAgent{avsNamespace, exceptionEncounteredSender} {
+}
+
+inline void CallManagerInterface::enableVideo() {
+    return;
+}
+
+inline void CallManagerInterface::disableVideo() {
+    return;
+}
+
+inline void CallManagerInterface::addDtmfObserver(std::shared_ptr<DtmfObserverInterface> observer) {
+    return;
+}
+
+inline void CallManagerInterface::removeDtmfObserver(std::shared_ptr<DtmfObserverInterface> observer) {
+    return;
 }
 
 }  // namespace sdkInterfaces

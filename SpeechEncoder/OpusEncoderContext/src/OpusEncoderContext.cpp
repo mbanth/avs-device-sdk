@@ -64,6 +64,10 @@ inline uint16_t Reverse16(uint16_t value) {
     return (((value & 0x00FF) << 8) | ((value & 0xFF00) >> 8));
 }
 
+std::shared_ptr<EncoderContext> OpusEncoderContext::createEncoderContext() {
+    return std::make_shared<OpusEncoderContext>();
+}
+
 OpusEncoderContext::~OpusEncoderContext() {
     close();
 }
@@ -85,16 +89,7 @@ bool OpusEncoderContext::init(AudioFormat inputFormat) {
         return false;
     }
 
-    m_outputFormat = {
-        .encoding = AudioFormat::Encoding::OPUS,
-        .endianness = AudioFormat::Endianness::LITTLE,
-        .sampleRateHz = inputFormat.sampleRateHz,
-        .sampleSizeInBits = 16,
-        .numChannels = inputFormat.numChannels,
-        .dataSigned = false,
-        .layout = AudioFormat::Layout::INTERLEAVED,
-    };
-
+    m_outputFormat.numChannels = inputFormat.numChannels;
     return true;
 }
 
@@ -194,6 +189,18 @@ void OpusEncoderContext::close() {
         opus_encoder_destroy(m_encoder);
         m_encoder = NULL;
     }
+}
+
+OpusEncoderContext::OpusEncoderContext() :
+        m_outputFormat{
+            AudioFormat::Encoding::OPUS,
+            AudioFormat::Endianness::LITTLE,
+            SAMPLE_RATE,
+            16,
+            0,
+            false,
+            AudioFormat::Layout::INTERLEAVED,
+        } {
 }
 
 }  // namespace speechencoder

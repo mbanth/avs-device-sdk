@@ -18,7 +18,7 @@
 
 #include <gtest/gtest.h>
 
-#include <RegistrationManager/CustomerDataManager.h>
+#include <RegistrationManager/CustomerDataManagerFactory.h>
 #include <Settings/DeviceSettingsManager.h>
 #include <Settings/MockSetting.h>
 #include <Settings/SettingsManager.h>
@@ -86,8 +86,14 @@ void StateReportGeneratorTest::SetUp() {
     m_mockBoolSetting = std::make_shared<MockSetting<bool>>(BOOL_SETTING_VALUE);
     m_mockIntSetting = std::make_shared<MockSetting<int>>(INT_SETTING_VALUE);
     m_mockStringSetting = std::make_shared<MockSetting<std::string>>(STRING_SETTING_VALUE);
-    auto customerDataManager = std::make_shared<registrationManager::CustomerDataManager>();
-    m_mockSettingManager = std::make_shared<MockSettingManager>(customerDataManager);
+    auto customerDataManager = registrationManager::CustomerDataManagerFactory::createCustomerDataManagerInterface();
+    std::tuple<
+        SettingConfiguration<SettingInterface<bool>>,
+        SettingConfiguration<SettingInterface<int>>,
+        SettingConfiguration<SettingInterface<std::string>>>
+        settingConfigs;
+
+    m_mockSettingManager = std::make_shared<MockSettingManager>(customerDataManager, settingConfigs);
 
     SettingEventMetadata boolSettingMetadata{"test", "", "BoolSettingReport", "boolSetting"};
     SettingEventMetadata intSettingMetadata{"test", "", "IntSettingReport", "intSetting"};

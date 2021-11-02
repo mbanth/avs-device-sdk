@@ -18,7 +18,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <RegistrationManager/CustomerDataManager.h>
+#include <RegistrationManager/MockCustomerDataManager.h>
 #include <Settings/DeviceSettingsManager.h>
 #include <Settings/SettingsManager.h>
 #include <Settings/SettingCallbacks.h>
@@ -62,7 +62,7 @@ public:
     bool clearData(const typename SettingT::ValueType& value);
 
     /// Build setting object.
-    SettingStub(const typename SettingT::ValueType& value);
+    explicit SettingStub(const typename SettingT::ValueType& value);
 };
 
 template <typename SettingT>
@@ -112,8 +112,10 @@ protected:
 };
 
 void SettingCallbacksTest::SetUp() {
-    auto customerDataManager = std::make_shared<registrationManager::CustomerDataManager>();
-    m_manager = std::make_shared<DeviceSettingsManager>(customerDataManager);
+    auto customerDataManager = std::make_shared<NiceMock<registrationManager::MockCustomerDataManager>>();
+    DeviceSettingManagerSettingConfigurations settingConfigs;
+
+    m_manager = std::make_shared<DeviceSettingsManager>(customerDataManager, settingConfigs);
     m_alarmVolumeRamp = std::make_shared<SettingStub<AlarmVolumeRampSetting>>(INIT_ALARM_VOLUME_RAMP);
     m_wwConfirmation = std::make_shared<SettingStub<WakeWordConfirmationSetting>>(INIT_WAKEWORD_CONFIRMATION);
     m_timezone = std::make_shared<SettingStub<TimeZoneSetting>>(INIT_TIMEZONE);
@@ -151,7 +153,7 @@ public:
      *
      * @param manager The device manager used to register the callbacks.
      */
-    ObserverClass(std::shared_ptr<DeviceSettingsManager>& manager);
+    explicit ObserverClass(std::shared_ptr<DeviceSettingsManager>& manager);
 
     /**
      * Destructor.

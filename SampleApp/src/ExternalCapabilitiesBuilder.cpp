@@ -60,7 +60,8 @@ ExternalCapabilitiesBuilder::ExternalCapabilitiesBuilder(std::shared_ptr<avsComm
 
 ExternalCapabilitiesBuilder& ExternalCapabilitiesBuilder::withVisualFocusManager(
     std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::FocusManagerInterface> focusManager) {
-    // ExternalCapabilitiesBuilder doesn't need the focusManager to build any object.
+    ACSDK_DEBUG5(LX(__func__));
+    m_visualFocusManager = std::move(focusManager);
     return *this;
 }
 
@@ -85,13 +86,13 @@ std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::CallManagerInterface> 
 ExternalCapabilitiesBuilder& ExternalCapabilitiesBuilder::withInternetConnectionMonitor(
     std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::InternetConnectionMonitorInterface>
         internetConnectionMonitor) {
-    // ExternalCapabilitiesBuilder doesn't need the internetConnectionMonitor to build any object.
+    m_internetConnectionMonitor = std::move(internetConnectionMonitor);
     return *this;
 }
 
 ExternalCapabilitiesBuilder& ExternalCapabilitiesBuilder::withDialogUXStateAggregator(
     std::shared_ptr<alexaClientSDK::avsCommon::avs::DialogUXStateAggregator> dialogUXStateAggregator) {
-    // ExternalCapabilitiesBuilder doesn't need the dialogUXStateAggregator to build any object.
+    m_dialogUXStateAggregator = std::move(dialogUXStateAggregator);
     return *this;
 }
 
@@ -105,12 +106,12 @@ ExternalCapabilitiesBuilder::buildCapabilities(
     std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface> exceptionSender,
     std::shared_ptr<alexaClientSDK::certifiedSender::CertifiedSender> certifiedSender,
     std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::FocusManagerInterface> audioFocusManager,
-    std::shared_ptr<alexaClientSDK::registrationManager::CustomerDataManager> dataManager,
+    std::shared_ptr<alexaClientSDK::registrationManager::CustomerDataManagerInterface> dataManager,
     std::shared_ptr<alexaClientSDK::capabilityAgents::system::ReportStateHandler> stateReportHandler,
     std::shared_ptr<alexaClientSDK::capabilityAgents::aip::AudioInputProcessor> audioInputProcessor,
     std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::SpeakerManagerInterface> speakerManager,
     std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::DirectiveSequencerInterface> directiveSequencer,
-    std::shared_ptr<alexaClientSDK::capabilityAgents::system::UserInactivityMonitor> userInactivityMonitor,
+    std::shared_ptr<avsCommon::sdkInterfaces::UserInactivityMonitorInterface> userInactivityMonitor,
     std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::ContextManagerInterface> contextManager,
     std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::AVSGatewayManagerInterface> avsGatewayManager,
     std::shared_ptr<alexaClientSDK::avsCommon::utils::mediaPlayer::MediaPlayerInterface> ringtoneMediaPlayer,
@@ -122,7 +123,8 @@ ExternalCapabilitiesBuilder::buildCapabilities(
     std::shared_ptr<alexaClientSDK::avsCommon::avs::AudioInputStream> sharedDataStream,
 #endif
     std::shared_ptr<avsCommon::sdkInterfaces::PowerResourceManagerInterface> powerResourceManager,
-    std::shared_ptr<avsCommon::sdkInterfaces::ComponentReporterInterface> softwareComponentReporter) {
+    std::shared_ptr<avsCommon::sdkInterfaces::ComponentReporterInterface> softwareComponentReporter,
+    std::shared_ptr<avsCommon::sdkInterfaces::PlaybackRouterInterface> playbackRouter) {
     ACSDK_DEBUG5(LX(__func__));
     std::pair<
         std::list<ExternalCapabilitiesBuilder::Capability>,
@@ -146,11 +148,13 @@ ExternalCapabilitiesBuilder::buildCapabilities(
             messageSender,
             contextManager,
             audioFocusManager,
+            m_visualFocusManager,
             exceptionSender,
             audioFactory->communications(),
             avsGatewayURL,
             speakerManager,
-            ringtoneChannelVolumeInterface)) {
+            ringtoneChannelVolumeInterface,
+            powerResourceManager)) {
         ACSDK_ERROR(LX("initializeFailed").d("reason", "unableToCreateCallManager"));
         return retValue;
     }
@@ -163,6 +167,8 @@ ExternalCapabilitiesBuilder::buildCapabilities(
     std::shared_ptr<avsCommon::avs::ComponentConfiguration> commsConfig =
         avsCommon::avs::ComponentConfiguration::createComponentConfiguration(COMMS_NAMESPACE, commsVersion);
     softwareComponentReporter->addConfiguration(commsConfig);
+    m_dialogUXStateAggregator->addObserver(callManager);
+    m_internetConnectionMonitor->addInternetConnectionObserver(callManager);
     connectionManager->addConnectionStatusObserver(callManager);
     avsGatewayManager->addObserver(m_callManager);
 
@@ -234,7 +240,7 @@ ExternalCapabilitiesBuilder::buildCapabilities(
 
     Capability mrmCapability;
     auto mrmConfigurations = mrmCapabilityAgent->getCapabilityConfigurations();
-    mrmCapability.directiveHandler = std::move(mrmCapabilityAgent);
+    mrmCapability.directiveHandler = mrmCapabilityAgent;
     for (auto& configurationPtr : mrmConfigurations) {
         mrmCapability.configuration = *configurationPtr;
         capabilities.push_back(mrmCapability);

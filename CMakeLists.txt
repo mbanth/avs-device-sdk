@@ -1,30 +1,35 @@
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 
 # Set project information
-project(AlexaClientSDK VERSION 1.21.0 LANGUAGES CXX)
+project(AlexaClientSDK VERSION 1.25.0 LANGUAGES CXX)
 set(PROJECT_BRIEF "A cross-platform, modular SDK for interacting with the Alexa Voice Service")
 
 # This variable should be used by extension packages to include cmake files from this project.
 get_filename_component(AVS_CORE . ABSOLUTE)
 
-include(build/BuildDefaults.cmake)
+# This variable should be used to get the cmake build files.
+get_filename_component(AVS_CMAKE_BUILD cmakeBuild ABSOLUTE)
+
+include(${AVS_CMAKE_BUILD}/BuildDefaults.cmake)
 include(tools/Testing.cmake)
 
 # Set variables for target install and .pc pkg-config file
-include(build/cmake/PrepareInstall.cmake)
+include(${AVS_CMAKE_BUILD}/cmake/PrepareInstall.cmake)
 
 configure_file (
 	"${PROJECT_SOURCE_DIR}/AVSCommon/Utils/include/AVSCommon/Utils/SDKVersion.h.in"
 	"${PROJECT_SOURCE_DIR}/AVSCommon/Utils/include/AVSCommon/Utils/SDKVersion.h"
 	)
 
+# Add utils under ThirdParty first so extensions can also utilize them
+add_subdirectory("ThirdParty")
+
 # Add extension point targets.
-include(build/cmake/ExtensionPath.cmake)
+include(${AVS_CMAKE_BUILD}/cmake/ExtensionPath.cmake)
 add_extension_projects()
 
 # Alexa Client SDK targets.
 add_subdirectory("applications")
-add_subdirectory("ThirdParty")
 add_subdirectory("AVSCommon")
 add_subdirectory("Metrics")
 add_subdirectory("ACL")
@@ -52,7 +57,6 @@ endif()
 add_subdirectory("SampleApp")
 add_subdirectory("ApplicationUtilities")
 add_subdirectory("MediaPlayer")
-add_subdirectory("RegistrationManager")
 add_subdirectory("shared")
 add_subdirectory("SpeechEncoder")
 add_subdirectory("Storage")
@@ -60,4 +64,4 @@ add_subdirectory("SynchronizeStateSender")
 add_subdirectory("doc")
 
 # Create .pc pkg-config file
-include(build/cmake/GeneratePkgConfig.cmake)
+include(${AVS_CMAKE_BUILD}/cmake/GeneratePkgConfig.cmake)

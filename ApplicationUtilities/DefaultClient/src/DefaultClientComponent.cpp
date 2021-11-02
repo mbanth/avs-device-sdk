@@ -14,18 +14,30 @@
  */
 
 #include <ACL/AVSConnectionManager.h>
-#include <acsdkManufactory/ComponentAccumulator.h>
-#include <acsdkShared/SharedComponent.h>
-#include <AVSCommon/Utils/LibcurlUtils/HTTPContentFetcherFactory.h>
-
+#include <acsdkAlerts/AlertsComponent.h>
 #include <acsdkAudioPlayer/AudioPlayerComponent.h>
+#include <acsdkBluetooth/BluetoothComponent.h>
+#include <acsdkDeviceSettingsManager/DeviceSettingsManagerComponent.h>
+#include <acsdkDoNotDisturb/DoNotDisturbComponent.h>
 #include <acsdkExternalMediaPlayer/ExternalMediaPlayerComponent.h>
-#include <acsdkManufactory/ConstructorAdapter.h>
+#include <acsdkInteractionModel/InteractionModelComponent.h>
+#include <acsdkManufactory/ComponentAccumulator.h>
+#ifdef ENABLE_MC
+#include <acsdkMessagingController/MessagingControllerComponent.h>
+#endif
+#include <acsdkNotifications/NotificationsComponent.h>
+#include <acsdkShared/SharedComponent.h>
 #include <acsdkShutdownManagerInterfaces/ShutdownNotifierInterface.h>
+#include <acsdkSpeechEncoder/SpeechEncoderComponent.h>
+#include <acsdkSystemClockMonitor/SystemClockMonitor.h>
+#include <acsdkSystemClockMonitor/SystemClockNotifier.h>
+#include <ADSL/ADSLComponent.h>
 #include <AFML/FocusManagementComponent.h>
 #include <AVSCommon/AVS/Attachment/AttachmentManager.h>
 #include <AVSCommon/AVS/ExceptionEncounteredSender.h>
 #include <AVSCommon/SDKInterfaces/AuthDelegateInterface.h>
+#include <AVSCommon/Utils/LibcurlUtils/HTTPContentFetcherFactory.h>
+#include <AVSCommon/Utils/LibcurlUtils/DefaultSetCurlOptionsCallbackFactory.h>
 #include <AVSCommon/Utils/Logger/Logger.h>
 #include <AVSGatewayManager/AVSGatewayManager.h>
 #include <AVSGatewayManager/Storage/AVSGatewayManagerStorage.h>
@@ -37,9 +49,14 @@
 #include <ContextManager/ContextManager.h>
 #include <Endpoints/DefaultEndpointBuilder.h>
 #include <PlaybackController/PlaybackControllerComponent.h>
+#include <RegistrationManager/RegistrationManagerComponent.h>
+#include <SpeakerManager/DefaultChannelVolumeFactory.h>
 #include <SpeakerManager/SpeakerManagerComponent.h>
 #include <SynchronizeStateSender/SynchronizeStateSenderFactory.h>
+#include <System/SystemComponent.h>
+#include <SystemSoundPlayer/SystemSoundPlayer.h>
 #include <TemplateRuntime/RenderPlayerInfoCardsProviderRegistrar.h>
+#include <acsdkDeviceSetup/DeviceSetupComponent.h>
 
 #include "DefaultClient/DefaultClientComponent.h"
 #include "DefaultClient/StubApplicationAudioPipelineFactory.h"
@@ -54,12 +71,15 @@ using namespace acsdkAlexaEventProcessedNotifierInterfaces;
 using namespace acsdkApplicationAudioPipelineFactoryInterfaces;
 using namespace acsdkManufactory;
 using namespace acsdkShutdownManagerInterfaces;
+using namespace adsl;
+using namespace applicationUtilities;
+using namespace avsCommon::avs;
 using namespace avsCommon::avs::attachment;
 using namespace avsCommon::utils;
 using namespace avsCommon::utils::libcurlUtils;
-using namespace avsGatewayManager;
 using namespace avsGatewayManager::storage;
 using namespace capabilityAgents::alexa;
+using namespace capabilityAgents::system;
 
 /// String to identify log entries originating from this file.
 static const std::string TAG("DefaultClientComponent");
@@ -147,12 +167,34 @@ getCreateApplicationAudioPipelineFactory(
     };
 }
 
+/**
+ * Returns an std::function that finishes configuring the @c DeviceSettingStorageInterface.
+ * @param DeviceSettingStorageInterface The storage interface to finish configuring.
+ * @return A shared pointer to an @c DeviceSettingStorageInterface.
+ */
+static std::function<std::shared_ptr<settings::storage::DeviceSettingStorageInterface>()>
+getCreateDeviceSettingStorageInterface(std::shared_ptr<settings::storage::DeviceSettingStorageInterface> storage) {
+    return [storage]() -> std::shared_ptr<settings::storage::DeviceSettingStorageInterface> {
+        if (!storage) {
+            ACSDK_ERROR(LX("getCreateDeviceSettingStorageInterfaceFailed").d("isStorageNull", !storage));
+            return nullptr;
+        }
+
+        if (!storage->open()) {
+            ACSDK_ERROR(LX("getCreateDeviceSettingStorageInterfaceFailed").d("reason", "failed to open"));
+            return nullptr;
+        }
+
+        return storage;
+    };
+}
+
 DefaultClientComponent getComponent(
     const std::shared_ptr<avsCommon::sdkInterfaces::AuthDelegateInterface>& authDelegate,
     const std::shared_ptr<avsCommon::sdkInterfaces::ContextManagerInterface>& contextManager,
     const std::shared_ptr<avsCommon::sdkInterfaces::LocaleAssetsManagerInterface>& localeAssetsManager,
     const std::shared_ptr<avsCommon::utils::DeviceInfo>& deviceInfo,
-    const std::shared_ptr<registrationManager::CustomerDataManager>& customerDataManager,
+    const std::shared_ptr<registrationManager::CustomerDataManagerInterface>& customerDataManager,
     const std::shared_ptr<avsCommon::sdkInterfaces::storage::MiscStorageInterface>& miscStorage,
     const std::shared_ptr<avsCommon::sdkInterfaces::InternetConnectionMonitorInterface>& internetConnectionMonitor,
     const std::shared_ptr<avsCommon::sdkInterfaces::AVSGatewayManagerInterface>& avsGatewayManager,
@@ -169,7 +211,24 @@ DefaultClientComponent getComponent(
         audioMediaResourceProvider,
     const std::shared_ptr<certifiedSender::MessageStorageInterface>& messageStorage,
     const std::shared_ptr<avsCommon::sdkInterfaces::PowerResourceManagerInterface>& powerResourceManager,
-    const acsdkExternalMediaPlayer::ExternalMediaPlayer::AdapterCreationMap& adapterCreationMap) {
+    const acsdkExternalMediaPlayer::ExternalMediaPlayer::AdapterCreationMap& adapterCreationMap,
+    const std::shared_ptr<avsCommon::sdkInterfaces::SystemTimeZoneInterface>& systemTimeZone,
+    const std::shared_ptr<settings::storage::DeviceSettingStorageInterface>& deviceSettingStorage,
+    bool startAlertSchedulingOnInitialization,
+    const std::shared_ptr<avsCommon::sdkInterfaces::audio::AudioFactoryInterface>& audioFactory,
+    const std::shared_ptr<acsdkAlerts::storage::AlertStorageInterface>& alertStorage,
+    const std::shared_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceManagerInterface>& bluetoothDeviceManager,
+    const std::shared_ptr<acsdkBluetoothInterfaces::BluetoothStorageInterface>& bluetoothStorage,
+    const std::shared_ptr<acsdkBluetoothInterfaces::BluetoothDeviceConnectionRulesProviderInterface>&
+        bluetoothConnectionRulesProvider,
+    const std::shared_ptr<acsdkNotificationsInterfaces::NotificationsStorageInterface>& notificationsStorage) {
+    std::shared_ptr<avsCommon::utils::bluetooth::BluetoothEventBus> bluetoothEventBus;
+    if (bluetoothDeviceManager) {
+        bluetoothEventBus = bluetoothDeviceManager->getEventBus();
+    } else {
+        bluetoothEventBus = nullptr;
+    }
+
     return ComponentAccumulator<>()
         /// Instead of using factory methods to instantiate these interfaces, DefaultClientComponent accepts pre-made
         /// implementations and adds them to the manufactory.
@@ -191,10 +250,23 @@ DefaultClientComponent getComponent(
         .addInstance(audioMediaResourceProvider)
         .addInstance(messageStorage)
         .addInstance(powerResourceManager)
+        .addInstance(systemTimeZone)
+        .addInstance(audioFactory)
+        .addInstance(alertStorage)
+        .addInstance(bluetoothConnectionRulesProvider)
+        .addInstance(bluetoothDeviceManager)
+        .addInstance(bluetoothEventBus)
+        .addInstance(bluetoothStorage)
+        .addInstance(notificationsStorage)
         .addRetainedFactory(getCreateApplicationAudioPipelineFactory(stubAudioPipelineFactory))
+        .addRetainedFactory(getCreateDeviceSettingStorageInterface(deviceSettingStorage))
 
         /// Baseline SDK components. Applications are not expected to modify these.
+        .addComponent(acsdkDeviceSettingsManager::getComponent())
         .addComponent(acsdkShared::getComponent())
+        .addRetainedFactory(acsdkSystemClockMonitor::SystemClockMonitor::createSystemClockMonitorInterface)
+        .addRetainedFactory(acsdkSystemClockMonitor::SystemClockNotifier::createSystemClockNotifierInterface)
+        .addComponent(adsl::getComponent())
         .addRetainedFactory(afml::interruptModel::InterruptModel::createInterruptModel)
         .addComponent(afml::getComponent())
         .addRetainedFactory(AlexaInterfaceMessageSender::createAlexaInterfaceMessageSender)
@@ -209,21 +281,36 @@ DefaultClientComponent getComponent(
         .addRetainedFactory(AttachmentManager::createInProcessAttachmentManagerInterface)
         .addRetainedFactory(certifiedSender::CertifiedSender::create)
         .addRetainedFactory(createAlexaEventProcessedNotifierInterface)
+        .addRetainedFactory(DefaultSetCurlOptionsCallbackFactory::createSetCurlOptionsCallbackFactoryInterface)
+        .addRetainedFactory(DialogUXStateAggregator::createDialogUXStateAggregator)
         .addRetainedFactory(HTTPContentFetcherFactory::createHTTPContentFetcherInterfaceFactoryInterface)
         .addRetainedFactory(getCreateMessageRouter(messageRouterFactory))
+        .addComponent(registrationManager::getBackwardsCompatibleComponent())
+        .addRetainedFactory(systemSoundPlayer::SystemSoundPlayer::createSystemSoundPlayerInterface)
         .addUniqueFactory(capabilitiesDelegate::storage::SQLiteCapabilitiesDelegateStorage::
                               createCapabilitiesDelegateStorageInterface)
 
         /// Optional, horizontal components.
+        .addComponent(acsdkSpeechEncoder::getComponent())
         .addComponent(captions::getComponent())
 
-        /// Capability Agents. Most CAs are still instantiated in DefaultClient.cpp.
+        /// Capability Agents. Some CAs are still instantiated in DefaultClient.cpp.
+        .addComponent(acsdkAlerts::getComponent(startAlertSchedulingOnInitialization))
         .addComponent(acsdkAudioPlayer::getBackwardsCompatibleComponent())
+        .addComponent(acsdkBluetooth::getComponent())
+        .addComponent(acsdkDoNotDisturb::getComponent())
         .addComponent(acsdkExternalMediaPlayer::getBackwardsCompatibleComponent(adapterCreationMap))
+        .addComponent(acsdkInteractionModel::getComponent())
+#ifdef ENABLE_MC
+        .addComponent(acsdkMessagingController::getComponent())
+#endif
+        .addComponent(acsdkNotifications::getComponent())
         .addComponent(capabilityAgents::playbackController::getComponent())
         .addComponent(capabilityAgents::speakerManager::getComponent())
+        .addComponent(capabilityAgents::system::getComponent())
         .addRetainedFactory(capabilityAgents::templateRuntime::RenderPlayerInfoCardsProviderRegistrar::
-                                createRenderPlayerInfoCardsProviderRegistrarInterface);
+                                createRenderPlayerInfoCardsProviderRegistrarInterface)
+        .addComponent(acsdkDeviceSetup::getComponent());
 }
 
 }  // namespace defaultClient

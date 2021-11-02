@@ -19,11 +19,22 @@
 #include <memory>
 
 #include <ACL/Transport/MessageRouterFactoryInterface.h>
+#include <acsdkAlerts/Storage/AlertStorageInterface.h>
+#include <acsdkAlertsInterfaces/AlertsCapabilityAgentInterface.h>
 #include <acsdkApplicationAudioPipelineFactoryInterfaces/ApplicationAudioPipelineFactoryInterface.h>
+#include <acsdkBluetoothInterfaces/BluetoothDeviceConnectionRulesProviderInterface.h>
+#include <acsdkBluetoothInterfaces/BluetoothNotifierInterface.h>
+#include <acsdkBluetoothInterfaces/BluetoothStorageInterface.h>
+#include <acsdkDoNotDisturb/DoNotDisturbCapabilityAgent.h>
 #include <acsdkExternalMediaPlayer/ExternalMediaPlayer.h>
+#include <acsdkInteractionModelInterfaces/InteractionModelNotifierInterface.h>
 #include <acsdkManufactory/Component.h>
+#include <acsdkNotificationsInterfaces/NotificationsNotifierInterface.h>
+#include <acsdkNotificationsInterfaces/NotificationsStorageInterface.h>
 #include <acsdkStartupManagerInterfaces/StartupManagerInterface.h>
+#include <acsdkSystemClockMonitorInterfaces/SystemClockMonitorInterface.h>
 #include <Alexa/AlexaInterfaceMessageSender.h>
+#include <AVSCommon/AVS/DialogUXStateAggregator.h>
 #include <AVSCommon/SDKInterfaces/AudioFocusAnnotation.h>
 #include <AVSCommon/SDKInterfaces/AuthDelegateInterface.h>
 #include <AVSCommon/SDKInterfaces/AVSConnectionManagerInterface.h>
@@ -39,15 +50,24 @@
 #include <AVSCommon/SDKInterfaces/LocaleAssetsManagerInterface.h>
 #include <AVSCommon/SDKInterfaces/PowerResourceManagerInterface.h>
 #include <AVSCommon/SDKInterfaces/RenderPlayerInfoCardsProviderRegistrarInterface.h>
+#include <AVSCommon/SDKInterfaces/SystemTimeZoneInterface.h>
+#include <AVSCommon/SDKInterfaces/UserInactivityMonitorInterface.h>
+#include <AVSCommon/SDKInterfaces/Audio/AudioFactoryInterface.h>
+#include <AVSCommon/SDKInterfaces/Bluetooth/BluetoothDeviceManagerInterface.h>
 #include <AVSCommon/SDKInterfaces/Endpoints/EndpointBuilderInterface.h>
 #include <AVSCommon/SDKInterfaces/Storage/MiscStorageInterface.h>
+#include <AVSCommon/SDKInterfaces/VisualFocusAnnotation.h>
 #include <AVSCommon/Utils/Configuration/ConfigurationNode.h>
 #include <AVSCommon/Utils/DeviceInfo.h>
 #include <Captions/CaptionManagerInterface.h>
+#include <acsdkDeviceSetupInterfaces/DeviceSetupInterface.h>
 #include <CertifiedSender/CertifiedSender.h>
 #include <CertifiedSender/MessageStorageInterface.h>
 #include <InterruptModel/InterruptModel.h>
-#include <RegistrationManager/CustomerDataManager.h>
+#include <RegistrationManager/CustomerDataManagerInterface.h>
+#include <RegistrationManager/RegistrationManagerInterface.h>
+#include <RegistrationManager/RegistrationNotifierInterface.h>
+#include <SpeechEncoder/SpeechEncoder.h>
 
 #include "DefaultClient/EqualizerRuntimeSetup.h"
 #include "DefaultClient/StubApplicationAudioPipelineFactory.h"
@@ -62,14 +82,19 @@ namespace defaultClient {
  * non-manufactory method of initialization.
  */
 using DefaultClientComponent = acsdkManufactory::Component<
+    std::shared_ptr<acsdkAlertsInterfaces::AlertsCapabilityAgentInterface>,
     std::shared_ptr<acsdkApplicationAudioPipelineFactoryInterfaces::ApplicationAudioPipelineFactoryInterface>,
     std::shared_ptr<acsdkAudioPlayerInterfaces::AudioPlayerInterface>,
+    std::shared_ptr<acsdkBluetoothInterfaces::BluetoothNotifierInterface>,
     std::shared_ptr<acsdkEqualizerInterfaces::EqualizerRuntimeSetupInterface>,
-    std::shared_ptr<acsdkExternalMediaPlayer::ExternalMediaPlayer>,  /// Applications should not use this export.
+    std::shared_ptr<acsdkExternalMediaPlayer::ExternalMediaPlayer>,
     std::shared_ptr<acsdkExternalMediaPlayerInterfaces::ExternalMediaPlayerInterface>,
+    std::shared_ptr<acsdkNotificationsInterfaces::NotificationsNotifierInterface>,
     std::shared_ptr<acsdkShutdownManagerInterfaces::ShutdownManagerInterface>,
     std::shared_ptr<acsdkStartupManagerInterfaces::StartupManagerInterface>,
+    std::shared_ptr<avsCommon::sdkInterfaces::DirectiveSequencerInterface>,
     std::shared_ptr<afml::interruptModel::InterruptModel>,
+    std::shared_ptr<avsCommon::avs::DialogUXStateAggregator>,
     std::shared_ptr<avsCommon::avs::attachment::AttachmentManagerInterface>,
     std::shared_ptr<avsCommon::sdkInterfaces::AuthDelegateInterface>,
     std::shared_ptr<avsCommon::sdkInterfaces::AVSConnectionManagerInterface>,
@@ -81,6 +106,8 @@ using DefaultClientComponent = acsdkManufactory::Component<
     std::shared_ptr<avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface>,
     acsdkManufactory::
         Annotated<avsCommon::sdkInterfaces::AudioFocusAnnotation, avsCommon::sdkInterfaces::FocusManagerInterface>,
+    acsdkManufactory::
+        Annotated<avsCommon::sdkInterfaces::VisualFocusAnnotation, avsCommon::sdkInterfaces::FocusManagerInterface>,
     std::shared_ptr<avsCommon::sdkInterfaces::HTTPContentFetcherInterfaceFactoryInterface>,
     std::shared_ptr<avsCommon::sdkInterfaces::InternetConnectionMonitorInterface>,
     std::shared_ptr<avsCommon::sdkInterfaces::LocaleAssetsManagerInterface>,
@@ -88,6 +115,10 @@ using DefaultClientComponent = acsdkManufactory::Component<
     std::shared_ptr<avsCommon::sdkInterfaces::PowerResourceManagerInterface>,
     std::shared_ptr<avsCommon::sdkInterfaces::RenderPlayerInfoCardsProviderRegistrarInterface>,
     std::shared_ptr<avsCommon::sdkInterfaces::SpeakerManagerInterface>,
+    std::shared_ptr<avsCommon::sdkInterfaces::SystemSoundPlayerInterface>,
+    std::shared_ptr<avsCommon::sdkInterfaces::SystemTimeZoneInterface>,
+    std::shared_ptr<avsCommon::sdkInterfaces::UserInactivityMonitorInterface>,
+    std::shared_ptr<avsCommon::sdkInterfaces::audio::AudioFactoryInterface>,
     acsdkManufactory::Annotated<
         avsCommon::sdkInterfaces::endpoints::DefaultEndpointAnnotation,
         avsCommon::sdkInterfaces::endpoints::EndpointBuilderInterface>,
@@ -95,10 +126,19 @@ using DefaultClientComponent = acsdkManufactory::Component<
     std::shared_ptr<avsCommon::utils::DeviceInfo>,
     std::shared_ptr<avsCommon::utils::configuration::ConfigurationNode>,
     std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface>,
+    std::shared_ptr<acsdkSystemClockMonitorInterfaces::SystemClockMonitorInterface>,
     std::shared_ptr<capabilityAgents::alexa::AlexaInterfaceMessageSender>,
+    std::shared_ptr<capabilityAgents::doNotDisturb::DoNotDisturbCapabilityAgent>,
+    std::shared_ptr<acsdkInteractionModelInterfaces::InteractionModelNotifierInterface>,
     std::shared_ptr<captions::CaptionManagerInterface>,
     std::shared_ptr<certifiedSender::CertifiedSender>,
-    std::shared_ptr<registrationManager::CustomerDataManager>>;
+    std::shared_ptr<registrationManager::CustomerDataManagerInterface>,
+    std::shared_ptr<registrationManager::RegistrationManagerInterface>,
+    std::shared_ptr<registrationManager::RegistrationNotifierInterface>,
+    std::shared_ptr<settings::DeviceSettingsManager>,
+    std::shared_ptr<settings::storage::DeviceSettingStorageInterface>,
+    std::shared_ptr<speechencoder::SpeechEncoder>,
+    std::shared_ptr<acsdkDeviceSetupInterfaces::DeviceSetupInterface>>;
 
 /**
  * Get the manufactory @c Component for (legacy) @c DefaultClient initialization.
@@ -110,7 +150,7 @@ DefaultClientComponent getComponent(
     const std::shared_ptr<avsCommon::sdkInterfaces::ContextManagerInterface>& contextManager,
     const std::shared_ptr<avsCommon::sdkInterfaces::LocaleAssetsManagerInterface>& localeAssetsManager,
     const std::shared_ptr<avsCommon::utils::DeviceInfo>& deviceInfo,
-    const std::shared_ptr<registrationManager::CustomerDataManager>& customerDataManager,
+    const std::shared_ptr<registrationManager::CustomerDataManagerInterface>& customerDataManager,
     const std::shared_ptr<avsCommon::sdkInterfaces::storage::MiscStorageInterface>& miscStorage,
     const std::shared_ptr<avsCommon::sdkInterfaces::InternetConnectionMonitorInterface>& internetConnectionMonitor,
     const std::shared_ptr<avsCommon::sdkInterfaces::AVSGatewayManagerInterface>& avsGatewayManager,
@@ -127,7 +167,17 @@ DefaultClientComponent getComponent(
         audioMediaResourceProvider,
     const std::shared_ptr<certifiedSender::MessageStorageInterface>& messageStorage,
     const std::shared_ptr<avsCommon::sdkInterfaces::PowerResourceManagerInterface>& powerResourceManager,
-    const acsdkExternalMediaPlayer::ExternalMediaPlayer::AdapterCreationMap& adapterCreationMap);
+    const acsdkExternalMediaPlayer::ExternalMediaPlayer::AdapterCreationMap& adapterCreationMap,
+    const std::shared_ptr<avsCommon::sdkInterfaces::SystemTimeZoneInterface>& systemTimeZone,
+    const std::shared_ptr<settings::storage::DeviceSettingStorageInterface>& deviceSettingStorage,
+    bool startAlertSchedulingOnInitialization,
+    const std::shared_ptr<avsCommon::sdkInterfaces::audio::AudioFactoryInterface>& audioFactory,
+    const std::shared_ptr<acsdkAlerts::storage::AlertStorageInterface>& alertStorage,
+    const std::shared_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceManagerInterface>& bluetoothDeviceManager,
+    const std::shared_ptr<acsdkBluetoothInterfaces::BluetoothStorageInterface>& bluetoothStorage,
+    const std::shared_ptr<acsdkBluetoothInterfaces::BluetoothDeviceConnectionRulesProviderInterface>&
+        bluetoothConnectionRulesProvider,
+    const std::shared_ptr<acsdkNotificationsInterfaces::NotificationsStorageInterface>& notificationsStorage);
 
 }  // namespace defaultClient
 }  // namespace alexaClientSDK

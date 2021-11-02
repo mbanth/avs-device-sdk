@@ -70,6 +70,22 @@ static const int STATUS_INDEX = 2;
          DEVICE_SETTINGS_STATUS_COLUMN_NAME + " TEXT NOT NULL);";
 // clang-format on
 
+std::shared_ptr<DeviceSettingStorageInterface> SQLiteDeviceSettingStorage::createDeviceSettingStorageInterface(
+    const std::shared_ptr<avsCommon::utils::configuration::ConfigurationNode>& configurationRoot) {
+    auto storage = create((*configurationRoot));
+    if (!storage) {
+        ACSDK_ERROR(LX("createDeviceSettingStorageInterfaceFailed").d("reason", "null storage"));
+        return nullptr;
+    }
+
+    if (!storage->open()) {
+        ACSDK_ERROR(LX("createDeviceSettingStorageInterfaceFailed").d("reason", "deviceSettingStorageOpenFailed"));
+        return nullptr;
+    }
+
+    return std::move(storage);
+}
+
 std::unique_ptr<SQLiteDeviceSettingStorage> SQLiteDeviceSettingStorage::create(
     const ConfigurationNode& configurationRoot) {
     ACSDK_DEBUG5(LX(__func__));
@@ -270,7 +286,7 @@ DeviceSettingStorageInterface::SettingStatusAndValue SQLiteDeviceSettingStorage:
 
     if (statement->getStepResult() != SQLITE_ROW) {
         const std::string error = "Retrieving row from database failed.";
-        ACSDK_ERROR(LX("loadSettingFailed").d("reason", error).d("sql", sqlString));
+        ACSDK_WARN(LX("loadSettingFailed").d("reason", error).d("sql", sqlString));
         return std::make_pair(SettingStatus::NOT_AVAILABLE, error);
     }
 

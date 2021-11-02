@@ -31,6 +31,8 @@
 #include "ACL/Transport/MessageRouter.h"
 #include "ACL/Transport/MessageConsumerInterface.h"
 
+#include "TestMessageRequestObserver.h"
+
 namespace alexaClientSDK {
 namespace acl {
 namespace test {
@@ -40,6 +42,9 @@ using namespace transport::test;
 using namespace avsCommon::avs::attachment;
 using namespace avsCommon::utils::threading;
 using namespace avsCommon::utils::memory;
+using namespace alexaClientSDK::avsCommon::sdkInterfaces;
+using namespace avsCommon::utils;
+using namespace avsCommon::utils::observer::test;
 
 using namespace ::testing;
 
@@ -50,7 +55,13 @@ public:
         std::shared_ptr<AttachmentManagerInterface> attachmentManager,
         std::shared_ptr<TransportFactoryInterface> factory,
         const std::string& avsGateway) :
-            MessageRouter(authDelegate, attachmentManager, factory, avsGateway) {
+            MessageRouter(
+                authDelegate,
+                attachmentManager,
+                factory,
+                avsGateway,
+                avsCommon::sdkInterfaces::ENGINE_TYPE_ALEXA_VOICE_SERVICES,
+                SHORT_SERVER_SIDE_DISCONNECT_GRACE_PERIOD) {
     }
 
     /**
@@ -64,11 +75,18 @@ public:
         auto status = future.wait_for(millisecondsToWait);
         return status == std::future_status::ready;
     }
+
+    bool isExecutorActive() {
+        return !m_executor.isShutdown();
+    }
+
+    /// Short amount of time to allow for an automatic reconnect before notifying of a server side disconnect.
+    static const std::chrono::milliseconds SHORT_SERVER_SIDE_DISCONNECT_GRACE_PERIOD;
 };
 
 class MockTransportFactory : public TransportFactoryInterface {
 public:
-    MockTransportFactory(std::shared_ptr<MockTransport> transport) : m_mockTransport{transport} {
+    explicit MockTransportFactory(std::shared_ptr<MockTransport> transport) : m_mockTransport{transport} {
     }
 
     void setMockTransport(std::shared_ptr<MockTransport> transport) {
@@ -108,18 +126,25 @@ public:
     }
 
     void TearDown() {
-        // Wait on MessageRouter to ensure everything is finished
-        waitOnMessageRouter(SHORT_TIMEOUT_MS);
+        if (m_router->isExecutorActive()) {
+            // Wait on MessageRouter to ensure everything is finished
+            waitOnMessageRouter(SHORT_TIMEOUT_MS);
+        }
     }
 
     std::shared_ptr<avsCommon::avs::MessageRequest> createMessageRequest() {
         return std::make_shared<avsCommon::avs::MessageRequest>(MESSAGE);
     }
+
+    std::shared_ptr<TestMessageRequestObserver> createObserver() {
+        return std::make_shared<TestMessageRequestObserver>();
+    }
+
     void waitOnMessageRouter(std::chrono::milliseconds millisecondsToWait) {
         auto status = m_router->isExecutorReady(millisecondsToWait);
-
         ASSERT_EQ(true, status);
     }
+
     void setupStateToPending() {
         initializeMockTransport(m_mockTransport.get());
         m_router->enable();
@@ -146,6 +171,7 @@ public:
     // TestableMessageRouter m_router;
 };
 
+const std::chrono::milliseconds TestableMessageRouter::SHORT_SERVER_SIDE_DISCONNECT_GRACE_PERIOD(2000);
 const std::string MessageRouterTest::MESSAGE = "123456789";
 const int MessageRouterTest::MESSAGE_LENGTH = 10;
 const std::chrono::milliseconds MessageRouterTest::SHORT_TIMEOUT_MS = std::chrono::milliseconds(1000);

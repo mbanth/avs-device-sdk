@@ -37,6 +37,10 @@ static const std::string TAG("MultiTimer");
 /// Grace period used to avoid restarting the internal thread too often.
 static const std::chrono::milliseconds GRACE_PERIOD{500};
 
+std::shared_ptr<MultiTimer> MultiTimer::createMultiTimer() {
+    return std::make_shared<MultiTimer>();
+}
+
 MultiTimer::MultiTimer() : m_isRunning{false}, m_isBeingDestroyed{false}, m_nextToken{0} {
 }
 
@@ -101,10 +105,12 @@ bool MultiTimer::executeTimer() {
         auto now = std::chrono::steady_clock::now();
         auto nextIt = m_timers.begin();
         auto& nextTime = nextIt->first;
-        if (nextTime > now) {
+        auto waitTime = std::chrono::duration_cast<std::chrono::milliseconds>(nextTime - now);
+        if (waitTime > std::chrono::milliseconds::zero()) {
             // Wait for next time.
-            auto waitTime = std::chrono::duration_cast<std::chrono::milliseconds>(nextTime - now);
-            m_waitCondition.wait_for(lock, waitTime, [this] { return m_isBeingDestroyed; });
+            m_waitCondition.wait_for(lock, waitTime, [this, nextTime] {
+                return m_isBeingDestroyed || m_timers.empty() || (m_timers.begin()->first < nextTime);
+            });
         } else {
             // Execute task.
             auto taskIt = m_tasks.find(nextIt->second);

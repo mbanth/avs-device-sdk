@@ -43,11 +43,30 @@ using namespace avsCommon::avs;
 using namespace avsCommon::sdkInterfaces;
 using namespace avsCommon::utils;
 
+std::shared_ptr<DirectiveSequencerInterface> DirectiveSequencer::createDirectiveSequencerInterface(
+    std::shared_ptr<avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface> exceptionSender,
+    std::shared_ptr<acsdkShutdownManagerInterfaces::ShutdownNotifierInterface> shutdownNotifier,
+    std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface> metricRecorder) {
+    ACSDK_DEBUG5(LX(__func__));
+
+    if (!exceptionSender || !shutdownNotifier) {
+        ACSDK_ERROR(LX("createDirectiveSequencerInterfaceFailed")
+                        .d("isExceptionSenderNull", !exceptionSender)
+                        .d("isShutdownNotifierNull", !shutdownNotifier));
+        return nullptr;
+    }
+
+    auto sequencer = std::shared_ptr<DirectiveSequencer>(new DirectiveSequencer(exceptionSender, metricRecorder));
+    shutdownNotifier->addObserver(sequencer);
+
+    return sequencer;
+}
+
 std::unique_ptr<DirectiveSequencerInterface> DirectiveSequencer::create(
     std::shared_ptr<avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface> exceptionSender,
     std::shared_ptr<metrics::MetricRecorderInterface> metricRecorder) {
     if (!exceptionSender) {
-        ACSDK_INFO(LX("createFailed").d("reason", "nullptrExceptionSender"));
+        ACSDK_ERROR(LX("createFailed").d("reason", "nullptrExceptionSender"));
         return nullptr;
     }
     return std::unique_ptr<DirectiveSequencerInterface>(new DirectiveSequencer(exceptionSender, metricRecorder));
@@ -82,7 +101,9 @@ bool DirectiveSequencer::onDirective(std::shared_ptr<AVSDirective> directive) {
                        .d("reason", m_isShuttingDown ? "isShuttingDown" : "disabled"));
         return false;
     }
-    ACSDK_INFO(LX("onDirective").d("directive", directive->getHeaderAsString()));
+    ACSDK_INFO(LX("onDirective")
+                   .d("directive", directive->getHeaderAsString())
+                   .sensitive("raw", directive->getUnparsedDirective()));
     m_receivingQueue.push_back(directive);
     m_wakeReceivingLoop.notifyOne();
     return true;
@@ -170,7 +191,7 @@ void DirectiveSequencer::receiveDirectiveLocked(std::unique_lock<std::mutex>& lo
         ACSDK_METRIC_MSG(TAG, directive, Metrics::Location::ADSL_DEQUEUE);
     }
 
-    bool handled = false;
+    bool handled;
 
 /**
  * Previously it was expected that all directives resulting from a Recognize event

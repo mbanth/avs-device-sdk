@@ -114,7 +114,7 @@ void addSeeds(const std::vector<uint32_t>& seeds) {
  * @return A hex string of length @c numDigits.
  */
 static const std::string generateHexWithReplacement(
-    std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint32_t>& ibe,
+    std::independent_bits_engine<std::mt19937, CHAR_BIT, uint32_t>& ibe,
     unsigned int numDigits,
     uint8_t replacementBits,
     uint8_t numReplacementBits) {
@@ -165,7 +165,7 @@ static const std::string generateHexWithReplacement(
  * @return A hex string of length @c numDigits.
  */
 static const std::string generateHex(
-    std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint32_t>& ibe,
+    std::independent_bits_engine<std::mt19937, CHAR_BIT, uint32_t>& ibe,
     unsigned int numDigits) {
     return generateHexWithReplacement(ibe, numDigits, 0, 0);
 }
@@ -191,12 +191,12 @@ static void addDefaultSeedLocked() {
 }
 
 const std::string generateUUID() {
-    static std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint32_t> ibe;
+    static std::independent_bits_engine<std::mt19937, CHAR_BIT, uint32_t> ibe;
     std::unique_lock<std::mutex> lock(g_mutex);
-    static int consistentEntropyReports = 0;
-    static double priorEntropyResult = 0;
 
     if (g_seedNeeded) {
+        static int consistentEntropyReports = 0;
+        static double priorEntropyResult = 0;
         addDefaultSeedLocked();
         std::seed_seq seed(seedsPool.begin(), seedsPool.end());
         ibe.seed(seed);
@@ -213,10 +213,10 @@ const std::string generateUUID() {
         if (currentEntropy > ENTROPY_THRESHOLD) {
             g_seedNeeded = false;
         } else {
-            ACSDK_WARN(LX("low entropy on call to generate UUID").d("current entropy", currentEntropy));
+            ACSDK_INFO(LX("low entropy on call to generate UUID").d("current entropy", currentEntropy));
             if (consistentEntropyReports > ENTROPY_REPEAT_THRESHOLD) {
                 g_seedNeeded = false;
-                ACSDK_WARN(LX("multiple repeat values for entropy")
+                ACSDK_INFO(LX("multiple repeat values for entropy")
                                .d("current entropy", currentEntropy)
                                .d("consistent entropy reports", consistentEntropyReports));
             }

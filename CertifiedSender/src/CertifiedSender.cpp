@@ -19,7 +19,9 @@
 #include <AVSCommon/Utils/Logger/Logger.h>
 #include <AVSCommon/Utils/Power/PowerMonitor.h>
 #include <AVSCommon/Utils/Configuration/ConfigurationNode.h>
-#include <RegistrationManager/CustomerDataManager.h>
+#include <RegistrationManager/CustomerDataManagerInterface.h>
+
+#include <queue>
 
 namespace alexaClientSDK {
 namespace certifiedSender {
@@ -61,21 +63,21 @@ CertifiedSender::CertifiedMessageRequest::CertifiedMessageRequest(
         m_isRequestShuttingDown{false} {
 }
 
-void CertifiedSender::CertifiedMessageRequest::exceptionReceived(const std::string& exceptionMessage) {
-    std::lock_guard<std::mutex> lock(m_requestMutex);
-    m_sendMessageStatus = MessageRequestObserverInterface::Status::SERVER_INTERNAL_ERROR_V2;
-    m_responseReceived = true;
-    m_requestCv.notifyAll();
-}
-
 void CertifiedSender::CertifiedMessageRequest::sendCompleted(
     MessageRequestObserverInterface::Status sendMessageStatus) {
     std::lock_guard<std::mutex> lock(m_requestMutex);
+    ACSDK_DEBUG(LX(__func__).d("status", sendMessageStatus));
     if (!m_responseReceived) {
         m_sendMessageStatus = sendMessageStatus;
         m_responseReceived = true;
         m_requestCv.notifyAll();
     }
+}
+
+void CertifiedSender::CertifiedMessageRequest::exceptionReceived(const std::string& exceptionMessage) {
+    // Log error, but only set status in CertifiedMessageRequest::sendCompleted() since that is when we get the actual
+    // status code.
+    ACSDK_ERROR(LX(__func__).m(exceptionMessage));
 }
 
 MessageRequestObserverInterface::Status CertifiedSender::CertifiedMessageRequest::waitForCompletion() {
@@ -104,7 +106,7 @@ std::shared_ptr<CertifiedSender> CertifiedSender::create(
     std::shared_ptr<MessageSenderInterface> messageSender,
     std::shared_ptr<AVSConnectionManagerInterface> connection,
     std::shared_ptr<MessageStorageInterface> storage,
-    std::shared_ptr<registrationManager::CustomerDataManager> dataManager) {
+    std::shared_ptr<registrationManager::CustomerDataManagerInterface> dataManager) {
     auto certifiedSender =
         std::shared_ptr<CertifiedSender>(new CertifiedSender(messageSender, connection, storage, dataManager));
 
@@ -122,7 +124,7 @@ CertifiedSender::CertifiedSender(
     std::shared_ptr<avsCommon::sdkInterfaces::MessageSenderInterface> messageSender,
     std::shared_ptr<AVSConnectionManagerInterface> connection,
     std::shared_ptr<MessageStorageInterface> storage,
-    std::shared_ptr<registrationManager::CustomerDataManager> dataManager,
+    std::shared_ptr<registrationManager::CustomerDataManagerInterface> dataManager,
     int queueSizeWarnLimit,
     int queueSizeHardLimit) :
         RequiresShutdown("CertifiedSender"),
@@ -173,6 +175,23 @@ bool CertifiedSender::init() {
     m_powerResource = PowerMonitor::getInstance()->createLocalPowerResource(TAG);
     if (m_powerResource) {
         m_powerResource->acquire();
+    }
+
+    /// Load stored messages from storage.
+    std::queue<MessageStorageInterface::StoredMessage> storedMessages;
+    if (!m_storage->load(&storedMessages)) {
+        ACSDK_ERROR(LX("initFailed").m("Could not load messages from database file."));
+        return false;
+    }
+
+    while (!storedMessages.empty() && static_cast<int>(storedMessages.size()) <= m_queueSizeHardLimit) {
+        auto storedMessage = storedMessages.front();
+        {
+            std::lock_guard<std::mutex> lock{m_mutex};
+            m_messagesToSend.push_back(std::make_shared<CertifiedMessageRequest>(
+                storedMessage.message, storedMessage.id, storedMessage.uriPathExtension));
+        }
+        storedMessages.pop();
     }
 
     m_workerThread = std::thread(&CertifiedSender::mainloop, this);
