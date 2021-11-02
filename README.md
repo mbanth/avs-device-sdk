@@ -26,7 +26,7 @@ You can also prototype with a third party development kit:
 
 Or if you prefer, you can start with our [SDK API Documentation](https://alexa.github.io/avs-device-sdk/).
 
-The SDK in https://github.com/xmos/avs-device-sdk is a fork of https://github.com/alexa/avs-device-sdk. The SDK is updated with the latest 'alexa' version only when new changes from XMOS are required, for example if a new feature is introduced or a new product is released. The version of the 'alexa' master branch used in the 'xmos' master branch can be found in the tag or in the release branch name. The tag has format 'vX.Y.Z' and the release branch name has format 'xmos_vX.Y.Z', where 'vX.Y.Z' is the corresponding released version in the 'alexa' fork.
+The SDK in https://github.com/xmos/avs-device-sdk is a fork of https://github.com/alexa/avs-device-sdk. The SDK is updated with the latest 'alexa' version only when new changes from XMOS are required, for example if a new feature is introduced or a new product is released. The version of the 'alexa' master branch used in the 'xmos' master branch can be found in the tag or in the release branch name. The tag has format 'vA.B.C.D' and the release branch name has format 'xmos_vA.B.C.D' , where 'vA.B.C' is the corresponding released version in the 'alexa' fork and 'D' is an extra version digit indicating any XMOS-only change.
 
 ### Learn More About The AVS Device SDK
 
