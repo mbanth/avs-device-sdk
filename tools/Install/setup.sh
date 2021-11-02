@@ -23,7 +23,7 @@
 set -o errexit  # Exit the script if any statement fails.
 set -o nounset  # Exit the script if any uninitialized variable is used.
 
-CLONE_URL=${CLONE_URL:- 'https://github.com/lucianomartin/avs-device-sdk.git'}
+CLONE_URL=${CLONE_URL:- 'https://github.com/xmos/avs-device-sdk.git'}
 
 PORT_AUDIO_FILE="pa_stable_v190600_20161030.tgz"
 PORT_AUDIO_DOWNLOAD_URL="http://www.portaudio.com/archives/$PORT_AUDIO_FILE"
@@ -128,7 +128,7 @@ show_help() {
   echo  '  -a <file-name>        The file that contains Android installation configurations (e.g. androidConfig.txt)'
   echo  '  -d <description>      The description of the device.'
   echo  '  -m <manufacturer>     The device manufacturer name.'
-  echo  '  -x <xmos-device-type> XMOS device to setup: default xvf3510'
+  echo  '  -x <xmos-device-type> XMOS device to setup: possible values are xvf3100, xvf3500, xvf3510, xvf3600-slave, xvf3600-master, or xvf3610, default is xvf3510'
   echo  '  -g                    Flag to enable keyword detector on GPIO interrupt'
   echo  '  -h                    Display this help and exit'
 }
