@@ -1,5 +1,8 @@
 ## ChangeLog
 
+### Version 1.21.0_gpio - November 02 2021
+**XMOS only change**: add support for KWD using GPIO INT_N pin. This will be alternative to using Sensory KWD.
+
 ### Version 1.21.0 - October 26 2020
 Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal].(https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)
 
