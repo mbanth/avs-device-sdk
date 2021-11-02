@@ -24,15 +24,46 @@ if [ -z "$PLATFORM" ]; then
 	exit 1
 fi
 
+show_help() {
+  echo  'Usage: pi.sh [OPTIONS]'
+  echo  ''
+  echo  'Optional parameters'
+  echo  '  -g                    Flag to enable keyword detector on GPIO interrupt'
+  echo  '  -h                    Display this help and exit'
+}
+
+OPTIONS=gh
+while getopts "$OPTIONS" opt ; do
+    case $opt in
+        g ) GPIO_KEY_WORD_DETECTOR_FLAG="ON"
+            ;;
+
+        h )
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
 SOUND_CONFIG="$HOME/.asoundrc"
 START_SCRIPT="$INSTALL_BASE/startsample.sh"
 START_PREVIEW_SCRIPT="$INSTALL_BASE/startpreview.sh"
-CMAKE_PLATFORM_SPECIFIC=(-DSENSORY_KEY_WORD_DETECTOR=ON \
-    -DGSTREAMER_MEDIA_PLAYER=ON -DPORTAUDIO=ON \
-    -DPORTAUDIO_LIB_PATH="$THIRD_PARTY_PATH/portaudio/lib/.libs/libportaudio.$LIB_SUFFIX" \
-    -DPORTAUDIO_INCLUDE_DIR="$THIRD_PARTY_PATH/portaudio/include" \
-    -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=$THIRD_PARTY_PATH/alexa-rpi/lib/libsnsr.a \
-    -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$THIRD_PARTY_PATH/alexa-rpi/include)
+
+if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
+then
+    CMAKE_PLATFORM_SPECIFIC=(-DSENSORY_KEY_WORD_DETECTOR=ON \
+        -DGSTREAMER_MEDIA_PLAYER=ON -DPORTAUDIO=ON \
+        -DPORTAUDIO_LIB_PATH="$THIRD_PARTY_PATH/portaudio/lib/.libs/libportaudio.$LIB_SUFFIX" \
+        -DPORTAUDIO_INCLUDE_DIR="$THIRD_PARTY_PATH/portaudio/include" \
+        -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=$THIRD_PARTY_PATH/alexa-rpi/lib/libsnsr.a \
+        -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$THIRD_PARTY_PATH/alexa-rpi/include)
+else
+    CMAKE_PLATFORM_SPECIFIC=(-DGPIO_KEY_WORD_DETECTOR=ON \
+        -DGSTREAMER_MEDIA_PLAYER=ON -DPORTAUDIO=ON \
+        -DPORTAUDIO_LIB_PATH="$THIRD_PARTY_PATH/portaudio/lib/.libs/libportaudio.$LIB_SUFFIX" \
+        -DPORTAUDIO_INCLUDE_DIR="$THIRD_PARTY_PATH/portaudio/include")
+fi
+
 SENSORY_MODEL_HASH=5d811d92fb89043f4a4a7b7d0d26d7c3c83899b0
 GSTREAMER_AUDIO_SINK="alsasink"
 
@@ -44,7 +75,10 @@ install_dependencies() {
 
 run_os_specifics() {
   build_port_audio
-  build_kwd_engine
+  if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
+  then
+    build_kwd_engine
+  fi
   # configure_sound
 }
 

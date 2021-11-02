@@ -23,7 +23,7 @@
 set -o errexit  # Exit the script if any statement fails.
 set -o nounset  # Exit the script if any uninitialized variable is used.
 
-CLONE_URL=${CLONE_URL:- 'https://github.com/xmos/avs-device-sdk.git'}
+CLONE_URL=${CLONE_URL:- 'https://github.com/lucianomartin/avs-device-sdk.git'}
 
 PORT_AUDIO_FILE="pa_stable_v190600_20161030.tgz"
 PORT_AUDIO_DOWNLOAD_URL="http://www.portaudio.com/archives/$PORT_AUDIO_FILE"
@@ -60,8 +60,8 @@ ANDROID_CONFIG_FILE=""
 PATH_FILES_DIR="$HOME/.config/"
 VOCALFUSION_3510_SALES_DEMO_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_sales_demo_path"
 VOCALFUSION_3510_AVS_SETUP_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_avs_setup_path"
-
 PI_HAT_CTRL_PATH="$THIRD_PARTY_PATH/pi_hat_ctrl"
+GPIO_KEY_WORD_DETECTOR_FLAG=""
 ALIASES="$HOME/.bash_aliases"
 
 # Default value for XMOS device
@@ -123,7 +123,8 @@ show_help() {
   echo  '  -a <file-name>        The file that contains Android installation configurations (e.g. androidConfig.txt)'
   echo  '  -d <description>      The description of the device.'
   echo  '  -m <manufacturer>     The device manufacturer name.'
-  echo  '  -x <xmos-device-type> XMOS device to setup: default xvf3510, possible value xvf3500'
+  echo  '  -x <xmos-device-type> XMOS device to setup: possible values are xvf3100, xvf3500, xvf3510, xvf3600-slave, xvf3600-master, or xvf3610, default is xvf3510'
+  echo  '  -g                    Flag to enable keyword detector on GPIO interrupt'
   echo  '  -h                    Display this help and exit'
 }
 
@@ -143,7 +144,7 @@ XMOS_TAG=$2
 
 shift 2
 
-OPTIONS=s:a:m:d:hx:
+OPTIONS=s:a:d:m:x:gh
 while getopts "$OPTIONS" opt ; do
     case $opt in
         s )
@@ -166,6 +167,9 @@ while getopts "$OPTIONS" opt ; do
         x )
             XMOS_DEVICE="$OPTARG"
             ;;
+        g )
+            GPIO_KEY_WORD_DETECTOR_FLAG="-g"
+            ;;
         h )
             show_help
             exit 1
@@ -183,7 +187,9 @@ PLATFORM=${PLATFORM:-$(get_platform)}
 
 if [ "$PLATFORM" == "Raspberry pi" ]
 then
-  source pi.sh
+  PI_CMD="pi.sh ${GPIO_KEY_WORD_DETECTOR_FLAG}"
+  echo "Running command ${PI_CMD}"
+  source $PI_CMD
 elif [ "$PLATFORM" == "Windows mingw64" ]
 then
   source mingw.sh
@@ -301,8 +307,15 @@ while true; do
   esac
 done
 
-SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
-XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
+if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
+then
+  SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
+  XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
+else
+  SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=OFF"
+  XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=OFF"
+fi
+
 if [ $XMOS_DEVICE = "xvf3510" ]
 then
   PI_HAT_FLAG="-DPI_HAT_CTRL=ON"
