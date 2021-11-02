@@ -228,6 +228,15 @@ MediaPlayer::SourceId MediaPlayer::setSource(
 }
 
 MediaPlayer::SourceId MediaPlayer::setSource(
+    std::shared_ptr<avsCommon::avs::attachment::AttachmentReader> reader,
+    std::chrono::milliseconds offsetAdjustment,
+    const avsCommon::utils::AudioFormat* audioFormat,
+    const SourceConfig& config) {
+    m_offsetAdjustment = offsetAdjustment;
+    return setSource(reader, audioFormat, config);
+}
+
+MediaPlayer::SourceId MediaPlayer::setSource(
     std::shared_ptr<std::istream> stream,
     bool repeat,
     const SourceConfig& config,
@@ -597,7 +606,8 @@ MediaPlayer::MediaPlayer(
         m_pausePending{false},
         m_resumePending{false},
         m_pauseImmediately{false},
-        m_isLiveMode{enableLiveMode}
+        m_isLiveMode{enableLiveMode},
+        m_offsetAdjustment{std::chrono::milliseconds::zero()}
 #ifdef XMOS_AVS_TESTS
         ,
         m_fileStream{nullptr},
@@ -1778,7 +1788,7 @@ std::chrono::milliseconds MediaPlayer::getCurrentStreamOffset() {
                          .d("offsetInMilliseconds", offsetInMilliseconds.count()));
     }
 
-    return offsetInMilliseconds;
+    return offsetInMilliseconds + m_offsetAdjustment;
 }
 
 void MediaPlayer::handleAddObserver(

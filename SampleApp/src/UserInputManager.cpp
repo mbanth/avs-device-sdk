@@ -76,6 +76,8 @@ static const char PHONE_CONTROL = 'a';
 static const char MEETING_CONTROL = 'j';
 #endif
 
+static const char DEVICE_SETUP_COMPLETE = 'v';
+
 static constexpr char ENABLE = 'E';
 static constexpr char DISABLE = 'D';
 
@@ -391,6 +393,8 @@ SampleAppReturnCode UserInputManager::run() {
         } else if (x == DIAGNOSTICS_CONTROL) {
             diagnosticsMenu();
 #endif
+        } else if (x == DEVICE_SETUP_COMPLETE) {
+            m_interactionManager->sendDeviceSetupComplete();
         } else {
             m_interactionManager->errorValue();
         }
@@ -410,15 +414,15 @@ void UserInputManager::onAuthStateChange(AuthObserverInterface::State newState, 
 }
 
 void UserInputManager::onCapabilitiesStateChange(
-    CapabilitiesObserverInterface::State newState,
-    CapabilitiesObserverInterface::Error newError,
+    CapabilitiesDelegateObserverInterface::State newState,
+    CapabilitiesDelegateObserverInterface::Error newError,
     const std::vector<avsCommon::sdkInterfaces::endpoints::EndpointIdentifier>& addedOrUpdatedEndpoints,
     const std::vector<avsCommon::sdkInterfaces::endpoints::EndpointIdentifier>& deletedEndpoints) {
     // If one of the added or updated endpointIds is the default endpoint, and the
     // add/update failed, go into limited mode.
     // Limited mode is unnecessary if the failure is for non-default endpoints.
     bool shouldLimitInteration = false;
-    if (CapabilitiesObserverInterface::State::FATAL_ERROR == newState) {
+    if (CapabilitiesDelegateObserverInterface::State::FATAL_ERROR == newState) {
         auto it = std::find(addedOrUpdatedEndpoints.begin(), addedOrUpdatedEndpoints.end(), m_defaultEndpointId);
         if (addedOrUpdatedEndpoints.end() != it) {
             shouldLimitInteration = true;

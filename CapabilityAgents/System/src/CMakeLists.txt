@@ -7,6 +7,7 @@ add_library(AVSSystem SHARED
     "${CMAKE_CURRENT_LIST_DIR}/SoftwareInfoSendRequest.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/StateReportGenerator.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/SystemCapabilityProvider.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/SystemComponent.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/TimeZoneHandler.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/UserInactivityMonitor.cpp")
 
@@ -22,7 +23,16 @@ target_include_directories(AVSSystem PUBLIC
         "${RegistrationManager_SOURCE_DIR}/include"
         "${DeviceSettings_SOURCE_DIR}/include")
 
-target_link_libraries(AVSSystem AVSCommon ACL CertifiedSender SQLiteStorage RegistrationManager DeviceSettings)
+target_link_libraries(AVSSystem
+    AVSCommon
+    ACL
+    CertifiedSender
+    SQLiteStorage
+    RegistrationManager
+    DeviceSettings
+    acsdkManufactory
+    acsdkNotifier
+    acsdkShutdownManagerInterfaces)
 
 # install target
 asdk_install()

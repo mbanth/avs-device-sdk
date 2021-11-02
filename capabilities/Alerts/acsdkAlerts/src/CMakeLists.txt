@@ -6,6 +6,7 @@ add_library(acsdkAlerts SHARED
         Alarm.cpp
         Alert.cpp
         AlertsCapabilityAgent.cpp
+        AlertsComponent.cpp
         AlertScheduler.cpp
         Reminder.cpp
         Timer.cpp)
@@ -15,9 +16,12 @@ target_include_directories(acsdkAlerts PUBLIC
 
 target_link_libraries(acsdkAlerts PUBLIC
         acsdkAlertsInterfaces
+        acsdkSystemClockMonitorInterfaces
         DeviceSettings)
 
 target_link_libraries(acsdkAlerts PRIVATE
+        acsdkApplicationAudioPipelineFactoryInterfaces
+        acsdkManufactory
         AudioResources
         AVSCommon
         CertifiedSender

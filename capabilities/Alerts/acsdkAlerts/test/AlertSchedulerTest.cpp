@@ -20,7 +20,7 @@
 #include <AVSCommon/Utils/Metrics/MetricRecorderInterface.h>
 #include <AVSCommon/Utils/Metrics/MockMetricRecorder.h>
 #include <AVSCommon/Utils/Timing/TimeUtils.h>
-#include <RegistrationManager/CustomerDataManager.h>
+#include <RegistrationManager/MockCustomerDataManager.h>
 #include <Settings/DeviceSettingsManager.h>
 
 #include "acsdkAlerts/AlertScheduler.h"
@@ -154,7 +154,7 @@ public:
         return m_storeRetVal;
     }
 
-    bool storeOfflineAlert(const std::string& token, const std::string& scheduledTime) {
+    bool storeOfflineAlert(const std::string& token, const std::string& scheduledTime, const std::string& eventTime) {
         return m_storeOfflineRetVal;
     }
 
@@ -316,8 +316,10 @@ AlertSchedulerTest::AlertSchedulerTest() :
 
 void AlertSchedulerTest::SetUp() {
     m_alertStorage->setOpenRetVal(true);
-    m_settingsManager =
-        std::make_shared<settings::DeviceSettingsManager>(std::make_shared<registrationManager::CustomerDataManager>());
+    settings::DeviceSettingManagerSettingConfigurations configurations;
+
+    m_settingsManager = std::make_shared<settings::DeviceSettingsManager>(
+        std::make_shared<registrationManager::MockCustomerDataManager>(), configurations);
 }
 
 /**

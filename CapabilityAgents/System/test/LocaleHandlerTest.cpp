@@ -23,7 +23,7 @@
 #include <AVSCommon/Utils/JSON/JSONGenerator.h>
 #include <AVSCommon/Utils/JSON/JSONUtils.h>
 #include <AVSCommon/Utils/WaitEvent.h>
-#include <RegistrationManager/CustomerDataManager.h>
+#include <RegistrationManager/MockCustomerDataManager.h>
 #include <Settings/DeviceSettingsManager.h>
 #include <Settings/MockDeviceSettingStorage.h>
 #include <Settings/MockSettingEventSender.h>
@@ -104,8 +104,10 @@ protected:
 };
 
 void LocaleHandlerTest::SetUp() {
-    auto customerDataManager = std::make_shared<registrationManager::CustomerDataManager>();
-    m_deviceSettingsManager = std::make_shared<settings::DeviceSettingsManager>(customerDataManager);
+    auto customerDataManager = std::make_shared<NiceMock<registrationManager::MockCustomerDataManager>>();
+    DeviceSettingManagerSettingConfigurations configurations;
+
+    m_deviceSettingsManager = std::make_shared<settings::DeviceSettingsManager>(customerDataManager, configurations);
     m_mockDeviceSettingStorage = std::make_shared<MockDeviceSettingStorage>();
     m_mockExceptionEncounteredSender =
         std::make_shared<avsCommon::sdkInterfaces::test::MockExceptionEncounteredSender>();

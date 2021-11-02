@@ -54,6 +54,12 @@ static const std::string LIBCURLUTILS_CONFIG_KEY = "libcurlUtils";
 static const std::string INTERFACE_CONFIG_KEY = "CURLOPT_INTERFACE";
 /// Counter used to geneate unique IDs.
 std::atomic<uint64_t> CurlEasyHandleWrapper::m_idGenerator{1};
+///  Interface used for the curl connection.
+std::string CurlEasyHandleWrapper::m_interfaceName{""};
+/// Indicates the initialization of @c m_interfaceName
+bool CurlEasyHandleWrapper::m_isInterfaceNameInitialized = false;
+/// Synchronizes access to the @c m_interfaceName
+std::mutex CurlEasyHandleWrapper::m_interfaceNameMutex;
 
 #ifdef ACSDK_EMIT_CURL_LOGS
 /// Key under 'acl' configuration node for path/prefix of per-stream log file names.
@@ -128,7 +134,8 @@ CurlEasyHandleWrapper::CurlEasyHandleWrapper(std::string id) :
         m_requestHeaders{nullptr},
         m_postHeaders{nullptr},
         m_post{nullptr},
-        m_lastPost{nullptr} {
+        m_lastPost{nullptr},
+        m_curlOptionsSettingAdapter{this} {
     if (m_handle == nullptr) {
         ACSDK_ERROR(LX("CurlEasyHandleWrapperFailed").d("reason", "curl_easy_init failed"));
     } else {
@@ -314,6 +321,11 @@ bool CurlEasyHandleWrapper::setDefaultOptions() {
             break;
         }
 
+        if (!prepareForProxy(m_handle)) {
+            ACSDK_ERROR(LX("setDefaultOptions").d("reason", "prepareForProxy failed"));
+            break;
+        }
+
         /*
          * The documentation from libcurl recommends setting CURLOPT_NOSIGNAL to 1 for multi-threaded applications.
          * https://curl.haxx.se/libcurl/c/threadsafe.html
@@ -322,10 +334,14 @@ bool CurlEasyHandleWrapper::setDefaultOptions() {
             break;
         }
 
-        auto config = configuration::ConfigurationNode::getRoot()[LIBCURLUTILS_CONFIG_KEY];
-        std::string interfaceName;
-        if (config.getString(INTERFACE_CONFIG_KEY, &interfaceName) &&
-            !setopt(CURLOPT_INTERFACE, interfaceName.c_str())) {
+        {
+            std::lock_guard<std::mutex> lock(m_interfaceNameMutex);
+            if (!m_isInterfaceNameInitialized) {
+                initializeNetworkInterfaceNameLocked();
+            }
+        }
+
+        if (!m_interfaceName.empty() && !setopt(CURLOPT_INTERFACE, m_interfaceName.c_str())) {
             break;
         }
 
@@ -392,6 +408,45 @@ CURLcode CurlEasyHandleWrapper::pause(int mask) {
 
     ACSDK_ERROR(LX("pauseFailed").d("reason", "notValid"));
     return CURLcode::CURLE_FAILED_INIT;
+}
+
+void CurlEasyHandleWrapper::setInterfaceName(const std::string& interfaceName) {
+    std::lock_guard<std::mutex> lock(m_interfaceNameMutex);
+    ACSDK_DEBUG(LX("setInterfaceName").d("interfaceName", interfaceName));
+
+    if (interfaceName.empty()) {
+        m_interfaceName = interfaceName;
+        // Reset to default value from config, if provided.
+        initializeNetworkInterfaceNameLocked();
+        return;
+    }
+    m_interfaceName = interfaceName;
+}
+
+std::string CurlEasyHandleWrapper::getInterfaceName() {
+    std::lock_guard<std::mutex> lock(m_interfaceNameMutex);
+    if (!m_isInterfaceNameInitialized) {
+        initializeNetworkInterfaceNameLocked();
+    }
+    return m_interfaceName;
+}
+
+void CurlEasyHandleWrapper::initializeNetworkInterfaceNameLocked() {
+    auto config = configuration::ConfigurationNode::getRoot()[LIBCURLUTILS_CONFIG_KEY];
+    std::string interfaceNameFromConfig;
+    config.getString(INTERFACE_CONFIG_KEY, &interfaceNameFromConfig, "");
+
+    if (m_interfaceName.empty() && !interfaceNameFromConfig.empty()) {
+        // Update the value from config, so that getInterfaceName always
+        // return the current value.
+        m_interfaceName = interfaceNameFromConfig;
+    }
+    m_isInterfaceNameInitialized = true;
+    ACSDK_DEBUG(LX("initializeNetworkInterfaceName").d("m_interfaceName", m_interfaceName));
+}
+
+CurlEasyHandleWrapperOptionsSettingAdapter& CurlEasyHandleWrapper::curlOptionsSetter() {
+    return m_curlOptionsSettingAdapter;
 }
 
 #ifdef ACSDK_EMIT_CURL_LOGS

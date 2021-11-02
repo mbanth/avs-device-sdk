@@ -13,17 +13,19 @@
  * permissions and limitations under the License.
  */
 
-#include "acsdkNotifications/NotificationsCapabilityAgent.h"
-
 #include <rapidjson/error/en.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
+#include <acsdkNotificationsInterfaces/NotificationsObserverInterface.h>
 #include <AVSCommon/AVS/CapabilityConfiguration.h>
 #include <AVSCommon/Utils/JSON/JSONUtils.h>
 #include <AVSCommon/Utils/Metrics/DataPointCounterBuilder.h>
 #include <AVSCommon/Utils/Metrics/MetricEventBuilder.h>
 #include <AVSCommon/Utils/Timing/TimeUtils.h>
+
+#include "acsdkNotifications/NotificationsCapabilityAgent.h"
+#include "acsdkNotifications/NotificationsNotifier.h"
 
 namespace alexaClientSDK {
 namespace acsdkNotifications {
@@ -114,36 +116,30 @@ static void submitMetric(const std::shared_ptr<MetricRecorderInterface>& metricR
     recordMetric(metricRecorder, metricEvent);
 }
 
-std::shared_ptr<NotificationsCapabilityAgent> NotificationsCapabilityAgent::create(
-    std::shared_ptr<acsdkNotificationsInterfaces::NotificationsStorageInterface> notificationsStorage,
-    std::shared_ptr<acsdkNotificationsInterfaces::NotificationRendererInterface> renderer,
-    std::shared_ptr<avsCommon::sdkInterfaces::ContextManagerInterface> contextManager,
-    std::shared_ptr<avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface> exceptionSender,
-    std::shared_ptr<avsCommon::sdkInterfaces::audio::NotificationsAudioFactoryInterface> notificationsAudioFactory,
-    std::shared_ptr<registrationManager::CustomerDataManager> dataManager,
-    std::shared_ptr<MetricRecorderInterface> metricRecorder) {
-    if (nullptr == notificationsStorage) {
-        ACSDK_ERROR(LX("createFailed").d("reason", "nullNotificationsStorage"));
-        return nullptr;
-    }
-    if (nullptr == renderer) {
-        ACSDK_ERROR(LX("createFailed").d("reason", "nullRenderer"));
-        return nullptr;
-    }
-    if (nullptr == contextManager) {
-        ACSDK_ERROR(LX("createFailed").d("reason", "nullContextManager"));
-        return nullptr;
-    }
-    if (nullptr == exceptionSender) {
-        ACSDK_ERROR(LX("createFailed").d("reason", "nullExceptionSender"));
-        return nullptr;
-    }
-    if (nullptr == notificationsAudioFactory) {
-        ACSDK_ERROR(LX("createFailed").d("reason", "nullNotificationsAudioFactory"));
-        return nullptr;
-    }
-    if (nullptr == dataManager) {
-        ACSDK_ERROR(LX("createFailed").d("reason", "nullDataManager"));
+std::shared_ptr<NotificationsCapabilityAgent> NotificationsCapabilityAgent::createNotificationsCapabilityAgent(
+    const std::shared_ptr<acsdkNotificationsInterfaces::NotificationsStorageInterface>& notificationsStorage,
+    const std::shared_ptr<acsdkNotificationsInterfaces::NotificationRendererInterface>& renderer,
+    const std::shared_ptr<avsCommon::sdkInterfaces::ContextManagerInterface>& contextManager,
+    const std::shared_ptr<avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface>& exceptionSender,
+    const std::shared_ptr<avsCommon::sdkInterfaces::audio::AudioFactoryInterface>& audioFactory,
+    const std::shared_ptr<registrationManager::CustomerDataManagerInterface>& dataManager,
+    const std::shared_ptr<acsdkShutdownManagerInterfaces::ShutdownNotifierInterface>& shutdownNotifier,
+    acsdkManufactory::Annotated<
+        avsCommon::sdkInterfaces::endpoints::DefaultEndpointAnnotation,
+        avsCommon::sdkInterfaces::endpoints::EndpointCapabilitiesRegistrarInterface> endpointCapabilitiesRegistrar,
+    const std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface>& metricRecorder) {
+    ACSDK_DEBUG5(LX(__func__));
+    if (!notificationsStorage || !renderer || !contextManager || !exceptionSender || !audioFactory || !dataManager ||
+        !shutdownNotifier || !endpointCapabilitiesRegistrar) {
+        ACSDK_ERROR(LX("createNotificationsCapabilityAgentFailed")
+                        .d("isNotificationsStorageNull", !notificationsStorage)
+                        .d("isRendererNull", !renderer)
+                        .d("isContextManagerNull", !contextManager)
+                        .d("isExceptionManagerNull", !exceptionSender)
+                        .d("isAudioFactoryNull", !audioFactory)
+                        .d("isDataManagerNull", !dataManager)
+                        .d("isShutdownNotifierNull", !shutdownNotifier)
+                        .d("isEndpointCapabilitiesRegistrarNull", !endpointCapabilitiesRegistrar));
         return nullptr;
     }
 
@@ -152,7 +148,7 @@ std::shared_ptr<NotificationsCapabilityAgent> NotificationsCapabilityAgent::crea
         renderer,
         contextManager,
         exceptionSender,
-        notificationsAudioFactory,
+        audioFactory->notifications(),
         dataManager,
         metricRecorder));
 
@@ -160,6 +156,10 @@ std::shared_ptr<NotificationsCapabilityAgent> NotificationsCapabilityAgent::crea
         ACSDK_ERROR(LX("createFailed").d("reason", "initFailed"));
         return nullptr;
     }
+
+    shutdownNotifier->addObserver(notificationsCapabilityAgent);
+    endpointCapabilitiesRegistrar->withCapability(notificationsCapabilityAgent, notificationsCapabilityAgent);
+
     return notificationsCapabilityAgent;
 }
 
@@ -169,7 +169,7 @@ NotificationsCapabilityAgent::NotificationsCapabilityAgent(
     std::shared_ptr<ContextManagerInterface> contextManager,
     std::shared_ptr<ExceptionEncounteredSenderInterface> exceptionSender,
     std::shared_ptr<avsCommon::sdkInterfaces::audio::NotificationsAudioFactoryInterface> notificationsAudioFactory,
-    std::shared_ptr<registrationManager::CustomerDataManager> dataManager,
+    std::shared_ptr<registrationManager::CustomerDataManagerInterface> dataManager,
     std::shared_ptr<MetricRecorderInterface> metricRecorder) :
         CapabilityAgent{NAMESPACE, std::move(exceptionSender)},
         RequiresShutdown{"NotificationsCapabilityAgent"},
@@ -182,6 +182,23 @@ NotificationsCapabilityAgent::NotificationsCapabilityAgent(
         m_isEnabled{false},
         m_currentState{NotificationsCapabilityAgentState::IDLE} {
     m_capabilityConfigurations.insert(getNotificationsCapabilityConfiguration());
+
+    m_notifier = std::make_shared<NotificationsNotifier>();
+    m_notifier->setAddObserverFunction(
+        [this](const std::shared_ptr<acsdkNotificationsInterfaces::NotificationsObserverInterface>& observer) {
+            m_executor.submit([this, observer]() {
+                IndicatorState currentIndicatorState = IndicatorState::OFF;
+                if (!m_notificationsStorage->getIndicatorState(&currentIndicatorState)) {
+                    ACSDK_ERROR(LX("addObserverFunctionLambdaFailed")
+                                    .d("reason",
+                                       "getIndicatorStateFailed, could not notify "
+                                       "newly added observer"));
+                    return;
+                }
+
+                observer->onSetIndicator(currentIndicatorState);
+            });
+        });
 }
 
 std::shared_ptr<CapabilityConfiguration> getNotificationsCapabilityConfiguration() {
@@ -195,9 +212,6 @@ std::shared_ptr<CapabilityConfiguration> getNotificationsCapabilityConfiguration
 
 bool NotificationsCapabilityAgent::init() {
     ACSDK_DEBUG5(LX(__func__));
-
-    m_renderer->addObserver(shared_from_this());
-    m_contextManager->setStateProvider(INDICATOR_STATE_CONTEXT_KEY, shared_from_this());
 
     if (!m_notificationsStorage->open()) {
         ACSDK_INFO(LX(__func__).m("database file does not exist.  Creating."));
@@ -217,11 +231,13 @@ void NotificationsCapabilityAgent::executeInit() {
 
     IndicatorState currentIndicatorState = IndicatorState::OFF;
 
+    m_renderer->addObserver(shared_from_this());
+    m_contextManager->setStateProvider(INDICATOR_STATE_CONTEXT_KEY, shared_from_this());
+
     if (!m_notificationsStorage->getIndicatorState(&currentIndicatorState)) {
         ACSDK_ERROR(LX("executeInitFailed").d("reason", "getIndicatorStateFailed"));
         return;
     }
-    notifyObserversOfIndicatorState(currentIndicatorState);
 
     int queueSize = 0;
     if (!m_notificationsStorage->getQueueSize(&queueSize)) {
@@ -239,17 +255,24 @@ void NotificationsCapabilityAgent::executeInit() {
     }
 }
 
+std::shared_ptr<acsdkNotificationsInterfaces::NotificationsNotifierInterface> NotificationsCapabilityAgent::
+    getNotificationsNotifierInterface() {
+    return m_notifier;
+}
+
 void NotificationsCapabilityAgent::notifyObserversOfIndicatorState(IndicatorState state) {
     ACSDK_DEBUG5(LX(__func__).d("indicatorState", indicatorStateToInt(state)));
-    for (const auto& observer : m_observers) {
-        observer->onSetIndicator(state);
-    }
+    m_notifier->notifyObservers(
+        [state](const std::shared_ptr<acsdkNotificationsInterfaces::NotificationsObserverInterface>& observer) {
+            observer->onSetIndicator(state);
+        });
 }
 
 void NotificationsCapabilityAgent::notifyObserversOfNotificationReceived() {
-    for (const auto& observer : m_observers) {
-        observer->onNotificationReceived();
-    }
+    m_notifier->notifyObservers(
+        [](const std::shared_ptr<acsdkNotificationsInterfaces::NotificationsObserverInterface>& observer) {
+            observer->onNotificationReceived();
+        });
 }
 
 void NotificationsCapabilityAgent::provideState(
@@ -257,43 +280,6 @@ void NotificationsCapabilityAgent::provideState(
     unsigned int stateRequestToken) {
     ACSDK_DEBUG5(LX(__func__).d("stateRequestToken", stateRequestToken));
     m_executor.submit([this, stateRequestToken] { executeProvideState(true, stateRequestToken); });
-}
-
-void NotificationsCapabilityAgent::addObserver(
-    std::shared_ptr<acsdkNotificationsInterfaces::NotificationsObserverInterface> observer) {
-    ACSDK_DEBUG5(LX(__func__));
-    if (!observer) {
-        ACSDK_ERROR(LX(__func__).m("Observer is null."));
-        return;
-    }
-    m_executor.submit([this, observer] {
-        if (!m_observers.insert(observer).second) {
-            ACSDK_ERROR(LX(__func__).m("Duplicate observer."));
-        }
-        IndicatorState currentIndicatorState = IndicatorState::OFF;
-
-        if (!m_notificationsStorage->getIndicatorState(&currentIndicatorState)) {
-            ACSDK_ERROR(LX("addObserverFailed")
-                            .d("reason",
-                               "getIndicatorStateFailed, could not notify "
-                               "newly added observer"));
-            return;
-        }
-        observer->onSetIndicator(currentIndicatorState);
-    });
-}
-
-void NotificationsCapabilityAgent::removeObserver(
-    std::shared_ptr<acsdkNotificationsInterfaces::NotificationsObserverInterface> observer) {
-    if (!observer) {
-        ACSDK_ERROR(LX("removeObserverFailed").d("reason", "nullObserver"));
-        return;
-    }
-    m_executor.submit([this, observer]() {
-        if (!m_observers.erase(observer)) {
-            ACSDK_WARN(LX("removeObserverFailed").m("Failed to erase observer"));
-        }
-    });
 }
 
 void NotificationsCapabilityAgent::handleDirectiveImmediately(std::shared_ptr<avsCommon::avs::AVSDirective> directive) {
@@ -338,6 +324,7 @@ void NotificationsCapabilityAgent::handleSetIndicatorDirective(std::shared_ptr<D
     if (!parseDirectivePayload(info, &payload)) {
         ACSDK_ERROR(LX("handleSetIndicatorDirectiveFailed").d("reason", "could not parse directive payload"));
         sendExceptionEncounteredAndReportFailed(info, "failed to parse directive");
+        submitMetric(m_metricRecorder, "setIndicatorBadJsonFailed");
         return;
     }
 
@@ -349,6 +336,7 @@ void NotificationsCapabilityAgent::handleSetIndicatorDirective(std::shared_ptr<D
                         .d("reason", "payload missing persistVisualIndicator")
                         .d("messageId", info->directive->getMessageId()));
         sendExceptionEncounteredAndReportFailed(info, "missing persistVisualIndicator");
+        submitMetric(m_metricRecorder, "setIndicatorBadJsonFailed");
         return;
     }
 
@@ -358,6 +346,7 @@ void NotificationsCapabilityAgent::handleSetIndicatorDirective(std::shared_ptr<D
                         .d("reason", "payload missing playAudioIndicator")
                         .d("messageId", info->directive->getMessageId()));
         sendExceptionEncounteredAndReportFailed(info, "missing playAudioIndicator");
+        submitMetric(m_metricRecorder, "setIndicatorBadJsonFailed");
         return;
     }
 
@@ -371,6 +360,7 @@ void NotificationsCapabilityAgent::handleSetIndicatorDirective(std::shared_ptr<D
                             .d("reason", "payload missing asset")
                             .d("messageId", info->directive->getMessageId()));
             sendExceptionEncounteredAndReportFailed(info, "missing asset");
+            submitMetric(m_metricRecorder, "setIndicatorBadJsonFailed");
             return;
         }
 
@@ -379,6 +369,7 @@ void NotificationsCapabilityAgent::handleSetIndicatorDirective(std::shared_ptr<D
                             .d("reason", "payload missing assetId")
                             .d("messageId", info->directive->getMessageId()));
             sendExceptionEncounteredAndReportFailed(info, "missing assetId");
+            submitMetric(m_metricRecorder, "setIndicatorBadJsonFailed");
             return;
         }
 
@@ -387,6 +378,7 @@ void NotificationsCapabilityAgent::handleSetIndicatorDirective(std::shared_ptr<D
                             .d("reason", "payload missing url")
                             .d("messageId", info->directive->getMessageId()));
             sendExceptionEncounteredAndReportFailed(info, "missing url");
+            submitMetric(m_metricRecorder, "setIndicatorBadJsonFailed");
             return;
         }
     }
@@ -453,6 +445,7 @@ void NotificationsCapabilityAgent::executeSetIndicator(
             if (!m_notificationsStorage->enqueue(nextNotificationIndicator)) {
                 ACSDK_ERROR(LX("executeSetIndicatorFailed").d("reason", "failed to enqueue notification indicator"));
                 sendExceptionEncounteredAndReportFailed(info, "failed to store notification indicator in the queue");
+                submitMetric(m_metricRecorder, "setIndicatorFailed");
                 return;
             }
             executePossibleIndicatorStateChange(intToIndicatorState(nextNotificationIndicator.persistVisualIndicator));
@@ -515,6 +508,7 @@ void NotificationsCapabilityAgent::executeClearIndicator(std::shared_ptr<Directi
                 ACSDK_ERROR(
                     LX(__func__).m("failed to cancel notification rendering as a "
                                    "result of ClearIndicator directive"));
+                submitMetric(m_metricRecorder, "clearIndicatorFailed");
             }
             break;
         case NotificationsCapabilityAgentState::CANCELING_PLAY:
@@ -535,6 +529,7 @@ void NotificationsCapabilityAgent::executeClearIndicator(std::shared_ptr<Directi
     if (!m_notificationsStorage->clearNotificationIndicators()) {
         ACSDK_ERROR(LX("executeClearIndicatorFailed").d("reason", "could not clear storage of NotificationIndicators"));
         sendExceptionEncounteredAndReportFailed(info, "failed to clear out NotificationIndicators");
+        submitMetric(m_metricRecorder, "clearIndicatorFailed");
     }
 
     setHandlingCompleted(info);
@@ -769,6 +764,8 @@ bool NotificationsCapabilityAgent::parseDirectivePayload(
 void NotificationsCapabilityAgent::doShutdown() {
     ACSDK_DEBUG5(LX(__func__));
     std::unique_lock<std::mutex> lock(m_shutdownMutex);
+
+    m_notifier->setAddObserverFunction(nullptr);
 
     m_executor.submit([this] { executeShutdown(); });
 
