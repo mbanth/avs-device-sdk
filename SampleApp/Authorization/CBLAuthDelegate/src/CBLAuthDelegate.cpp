@@ -82,6 +82,9 @@ static const char JSON_KEY_REFRESH_TOKEN[] = "refresh_token";
 /// Key for error values in JSON returned by @c LWA
 static const char JSON_KEY_ERROR[] = "error";
 
+/// Key for the the root config.
+static const std::string CONFIG_ROOT_KEY = "cblAuthDelegate";
+
 /// Expected token_type value returned from token requests to @c LWA.
 static const std::string JSON_VALUE_BEARER = "bearer";
 
@@ -174,9 +177,7 @@ static AuthObserverInterface::Error getErrorCode(const std::string& error) {
  */
 static std::chrono::steady_clock::time_point calculateTimeToRetry(int retryCount) {
     /**
-     * Table of retry backoff values based upon page 77 of
-     * @see https://images-na.ssl-images-amazon.com/images/G/01/mwsportal/
-     * doc/en_US/offamazonpayments/LoginAndPayWithAmazonIntegrationGuide.pdf
+     * Table of retry backoff values
      */
     const static std::vector<int> retryBackoffTimes = {
         0,      // Retry 1:  0.00s range with 50% randomization: [ 0.0s.  0.0s]
@@ -283,7 +284,7 @@ AuthObserverInterface::Error parseLWAResponse(
 
 std::shared_ptr<AuthDelegateInterface> CBLAuthDelegate::createAuthDelegateInterface(
     const std::shared_ptr<avsCommon::utils::configuration::ConfigurationNode>& configuration,
-    const std::shared_ptr<CustomerDataManager>& customerDataManager,
+    const std::shared_ptr<CustomerDataManagerInterface>& customerDataManager,
     const std::shared_ptr<CBLAuthDelegateStorageInterface>& storage,
     const std::shared_ptr<CBLAuthRequesterInterface>& authRequester,
     std::unique_ptr<avsCommon::utils::libcurlUtils::HttpPostInterface> httpPost,
@@ -331,7 +332,7 @@ std::shared_ptr<AuthDelegateInterface> CBLAuthDelegate::createAuthDelegateInterf
 
 std::unique_ptr<CBLAuthDelegate> CBLAuthDelegate::create(
     const avsCommon::utils::configuration::ConfigurationNode& configuration,
-    std::shared_ptr<CustomerDataManager> customerDataManager,
+    std::shared_ptr<CustomerDataManagerInterface> customerDataManager,
     std::shared_ptr<CBLAuthDelegateStorageInterface> storage,
     std::shared_ptr<CBLAuthRequesterInterface> authRequester,
     std::shared_ptr<HttpPostInterface> httpPost,
@@ -436,7 +437,7 @@ void CBLAuthDelegate::clearData() {
 }
 
 CBLAuthDelegate::CBLAuthDelegate(
-    std::shared_ptr<CustomerDataManager> customerDataManager,
+    std::shared_ptr<CustomerDataManagerInterface> customerDataManager,
     std::shared_ptr<CBLAuthDelegateStorageInterface> storage,
     std::shared_ptr<CBLAuthRequesterInterface> authRequester,
     std::shared_ptr<HttpPostInterface> httpPost) :
@@ -457,7 +458,8 @@ CBLAuthDelegate::CBLAuthDelegate(
 bool CBLAuthDelegate::init(const ConfigurationNode& configuration, const std::shared_ptr<DeviceInfo>& deviceInfo) {
     ACSDK_DEBUG5(LX("init"));
 
-    m_configuration = CBLAuthDelegateConfiguration::create(configuration, deviceInfo);
+    m_configuration =
+        acsdkAuthorization::lwa::LWAAuthorizationConfiguration::create(configuration, deviceInfo, CONFIG_ROOT_KEY);
     if (!m_configuration) {
         ACSDK_ERROR(LX("initFailed").d("reason", "createCBLAuthDelegateConfigurationFailed"));
         return false;

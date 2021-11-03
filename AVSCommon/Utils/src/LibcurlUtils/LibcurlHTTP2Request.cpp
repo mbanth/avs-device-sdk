@@ -137,6 +137,7 @@ CURL* LibcurlHTTP2Request::getCurlHandle() {
 
 LibcurlHTTP2Request::LibcurlHTTP2Request(
     const alexaClientSDK::avsCommon::utils::http2::HTTP2RequestConfig& config,
+    const std::shared_ptr<LibcurlSetCurlOptionsCallbackInterface>& setCurlOptionsCallback,
     std::string id) :
         m_responseCodeReported{false},
         m_activityTimeout{milliseconds::zero()},
@@ -150,37 +151,52 @@ LibcurlHTTP2Request::LibcurlHTTP2Request(
             m_stream.setTransferType(CurlEasyHandleWrapper::TransferType::kGET);
             break;
         case HTTP2RequestType::POST:
-            curl_easy_setopt(m_stream.getCurlHandle(), CURLOPT_POST, 1L);
+            CURLcode ret = curl_easy_setopt(m_stream.getCurlHandle(), CURLOPT_POST, 1L);
+            if (ret != CURLE_OK) {
+                ACSDK_WARN(
+                    LX("Configuring the request").d("reason", "curlFailure").d("error", curl_easy_strerror(ret)));
+            }
             m_stream.setReadCallback(LibcurlHTTP2Request::readCallback, this);
             break;
     }
-    m_stream.setURL(config.getUrl());
-    m_stream.setWriteCallback(LibcurlHTTP2Request::writeCallback, this);
+    if (!m_stream.setURL(config.getUrl())) {
+        ACSDK_WARN(LX("Configuring the request").d("reason", "setURL failed"));
+    }
+    if (!m_stream.setWriteCallback(LibcurlHTTP2Request::writeCallback, this)) {
+        ACSDK_WARN(LX("Configuring the request").d("reason", "setWriteCallback failed"));
+    }
     m_stream.setHeaderCallback(LibcurlHTTP2Request::headerCallback, this);
-    m_stream.setopt(CURLOPT_TCP_KEEPALIVE, 1);
-    m_stream.setopt(CURLOPT_STREAM_WEIGHT, config.getPriority());
+    m_stream.curlOptionsSetter().setopt(CURLOPT_TCP_KEEPALIVE, 1);
+    m_stream.curlOptionsSetter().setopt(CURLOPT_STREAM_WEIGHT, config.getPriority());
 #ifdef ACSDK_ENABLE_CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE
-    m_stream.setopt(CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE);
+    m_stream.curlOptionsSetter().setopt(CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE);
 #endif
 
     if (config.getSource()) {
         m_source = config.getSource();
         auto headers = m_source->getRequestHeaderLines();
         for (const auto& header : headers) {
-            m_stream.addHTTPHeader(header);
+            bool result = m_stream.addHTTPHeader(header);
+            if (!result) {
+                ACSDK_WARN(LX("addHTTPHeader failed"));
+            }
         }
     }
     if (config.getSink()) {
         m_sink = config.getSink();
     }
     if (config.getConnectionTimeout() != std::chrono::milliseconds::zero()) {
-        m_stream.setopt(CURLOPT_CONNECTTIMEOUT_MS, config.getConnectionTimeout().count());
+        m_stream.curlOptionsSetter().setopt(CURLOPT_CONNECTTIMEOUT_MS, config.getConnectionTimeout().count());
     }
     if (config.getTransferTimeout() != std::chrono::milliseconds::zero()) {
-        m_stream.setopt(CURLOPT_TIMEOUT_MS, config.getTransferTimeout().count());
+        m_stream.curlOptionsSetter().setopt(CURLOPT_TIMEOUT_MS, config.getTransferTimeout().count());
     }
     if (config.getActivityTimeout() != std::chrono::milliseconds::zero()) {
         m_activityTimeout = config.getActivityTimeout();
+    }
+
+    if (setCurlOptionsCallback) {
+        setCurlOptionsCallback->processCallback(m_stream.curlOptionsSetter());
     }
 };
 

@@ -13,11 +13,7 @@
  * permissions and limitations under the License.
  */
 
-#include "acsdkAlerts/Alarm.h"
-#include "acsdkAlerts/AlertsCapabilityAgent.h"
-#include "acsdkAlerts/Reminder.h"
-#include "acsdkAlerts/Timer.h"
-#include "AVSCommon/AVS/CapabilityConfiguration.h"
+#include <AVSCommon/AVS/CapabilityConfiguration.h>
 #include <AVSCommon/AVS/MessageRequest.h>
 #include <AVSCommon/AVS/SpeakerConstants/SpeakerConstants.h>
 #include <AVSCommon/Utils/File/FileUtils.h>
@@ -26,6 +22,7 @@
 #include <AVSCommon/Utils/Metrics/DataPointStringBuilder.h>
 #include <AVSCommon/Utils/Metrics/MetricEventBuilder.h>
 #include <AVSCommon/Utils/Timing/TimeUtils.h>
+#include <acsdkManufactory/Annotated.h>
 #include <Settings/Setting.h>
 #include <Settings/SettingEventMetadata.h>
 #include <Settings/SettingEventSender.h>
@@ -48,6 +45,11 @@
 #include <string.h>
 #include <unordered_map>
 #include <unordered_set>
+
+#include "acsdkAlerts/Alarm.h"
+#include "acsdkAlerts/AlertsCapabilityAgent.h"
+#include "acsdkAlerts/Reminder.h"
+#include "acsdkAlerts/Timer.h"
 
 namespace alexaClientSDK {
 namespace acsdkAlerts {
@@ -168,6 +170,8 @@ static const std::string AVS_PAYLOAD_ERROR_MESSAGE_KEY = "message";
 static const std::string OFFLINE_STOPPED_ALERT_TOKEN_KEY = "token";
 /// The value of the offline stopped alert scheduledTime key.
 static const std::string OFFLINE_STOPPED_ALERT_SCHEDULED_TIME_KEY = "scheduledTime";
+/// The value of the offline stopped alert eventTime key.
+static const std::string OFFLINE_STOPPED_ALERT_EVENT_TIME_KEY = "eventTime";
 /// The value of the offline stopped alert id key.
 static const std::string OFFLINE_STOPPED_ALERT_ID_KEY = "id";
 
@@ -335,6 +339,77 @@ static void submitMetric(
     recordMetric(metricRecorder, metricEvent);
 }
 
+std::shared_ptr<AlertsCapabilityAgentInterface> AlertsCapabilityAgent::createAlertsCapabilityAgent(
+    const std::shared_ptr<acsdkAlerts::renderer::Renderer>& alertRenderer,
+    const std::shared_ptr<acsdkShutdownManagerInterfaces::ShutdownNotifierInterface>& shutdownNotifier,
+    const std::shared_ptr<avsCommon::sdkInterfaces::AVSConnectionManagerInterface>& connectionManager,
+    const std::shared_ptr<avsCommon::sdkInterfaces::ContextManagerInterface>& contextManager,
+    const std::shared_ptr<avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface>& exceptionEncounteredSender,
+    const acsdkManufactory::Annotated<
+        avsCommon::sdkInterfaces::AudioFocusAnnotation,
+        avsCommon::sdkInterfaces::FocusManagerInterface>& audioFocusManager,
+    const std::shared_ptr<avsCommon::sdkInterfaces::MessageSenderInterface>& messageSender,
+    const std::shared_ptr<avsCommon::sdkInterfaces::SpeakerManagerInterface>& speakerManager,
+    const std::shared_ptr<avsCommon::sdkInterfaces::audio::AudioFactoryInterface>& audioFactory,
+    const acsdkManufactory::Annotated<
+        avsCommon::sdkInterfaces::endpoints::DefaultEndpointAnnotation,
+        avsCommon::sdkInterfaces::endpoints::EndpointCapabilitiesRegistrarInterface>& endpointCapabilitiesRegistrar,
+    const std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface>& metricRecorder,
+    const std::shared_ptr<acsdkSystemClockMonitorInterfaces::SystemClockNotifierInterface>& systemClockMonitor,
+    const std::shared_ptr<certifiedSender::CertifiedSender>& certifiedSender,
+    const std::shared_ptr<registrationManager::CustomerDataManagerInterface>& dataManager,
+    const std::shared_ptr<settings::DeviceSettingsManager>& settingsManager,
+    const std::shared_ptr<storage::AlertStorageInterface>& alertStorage,
+    bool startAlertSchedulingOnInitialization) {
+    if (!alertRenderer || !shutdownNotifier || !connectionManager || !contextManager || !exceptionEncounteredSender ||
+        !audioFocusManager || !messageSender || !speakerManager || !audioFactory || !endpointCapabilitiesRegistrar ||
+        !systemClockMonitor || !certifiedSender || !dataManager || !settingsManager || !alertStorage) {
+        ACSDK_ERROR(LX("createAlertsCapabilityAgentFailed")
+                        .d("isAlertRendererNull", !alertRenderer)
+                        .d("isShutdownNotifierNull", !shutdownNotifier)
+                        .d("isConnectionManagerNull", !connectionManager)
+                        .d("isContextManagerNull", !contextManager)
+                        .d("isExceptionEncounteredSenderNull", !exceptionEncounteredSender)
+                        .d("isAudioFocusManagerNull", !audioFocusManager)
+                        .d("isMessageSenderNull", !messageSender)
+                        .d("isSpeakerManagerNull", !speakerManager)
+                        .d("isAudioFactoryNull", !audioFactory)
+                        .d("isEndpointCapabilitiesRegistrarNull", !endpointCapabilitiesRegistrar)
+                        .d("isSystemClockMonitorNull", !systemClockMonitor)
+                        .d("isCertifiedSenderNull", !certifiedSender)
+                        .d("isDataManagerNull", !dataManager));
+        return nullptr;
+    }
+
+    std::shared_ptr<FocusManagerInterface> focusManager = audioFocusManager;
+    auto alarmVolumeRampSetting = settingsManager->getSetting<settings::ALARM_VOLUME_RAMP>();
+    auto alertsAudioFactory = audioFactory->alerts();
+
+    auto alertsCapabilityAgent = create(
+        messageSender,
+        connectionManager,
+        certifiedSender,
+        focusManager,
+        speakerManager,
+        contextManager,
+        exceptionEncounteredSender,
+        alertStorage,
+        alertsAudioFactory,
+        alertRenderer,
+        dataManager,
+        alarmVolumeRampSetting,
+        settingsManager,
+        metricRecorder,
+        startAlertSchedulingOnInitialization,
+        systemClockMonitor);
+
+    shutdownNotifier->addObserver(alertsCapabilityAgent);
+    systemClockMonitor->addObserver(alertsCapabilityAgent);
+    endpointCapabilitiesRegistrar->withCapability(alertsCapabilityAgent, alertsCapabilityAgent);
+
+    return alertsCapabilityAgent;
+}
+
 std::shared_ptr<AlertsCapabilityAgent> AlertsCapabilityAgent::create(
     std::shared_ptr<MessageSenderInterface> messageSender,
     std::shared_ptr<AVSConnectionManagerInterface> connectionManager,
@@ -346,11 +421,12 @@ std::shared_ptr<AlertsCapabilityAgent> AlertsCapabilityAgent::create(
     std::shared_ptr<storage::AlertStorageInterface> alertStorage,
     std::shared_ptr<audio::AlertsAudioFactoryInterface> alertsAudioFactory,
     std::shared_ptr<renderer::RendererInterface> alertRenderer,
-    std::shared_ptr<registrationManager::CustomerDataManager> dataManager,
+    std::shared_ptr<registrationManager::CustomerDataManagerInterface> dataManager,
     std::shared_ptr<settings::AlarmVolumeRampSetting> alarmVolumeRampSetting,
     std::shared_ptr<settings::DeviceSettingsManager> settingsManager,
     std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface> metricRecorder,
-    bool startAlertSchedulingOnInitialization) {
+    bool startAlertSchedulingOnInitialization,
+    std::shared_ptr<acsdkSystemClockMonitorInterfaces::SystemClockNotifierInterface> systemClockMonitor) {
     if (!alarmVolumeRampSetting) {
         ACSDK_ERROR(LX("createFailed").d("reason", "nullAlarmVolumeRampSetting"));
         return nullptr;
@@ -374,7 +450,8 @@ std::shared_ptr<AlertsCapabilityAgent> AlertsCapabilityAgent::create(
         dataManager,
         alarmVolumeRampSetting,
         settingsManager,
-        metricRecorder));
+        metricRecorder,
+        systemClockMonitor));
 
     if (!alertsCA->initialize(startAlertSchedulingOnInitialization)) {
         ACSDK_ERROR(LX("createFailed").d("reason", "Initialization error."));
@@ -465,11 +542,12 @@ void AlertsCapabilityAgent::onFocusChanged(const std::string& channelName, avsCo
             if (speakerSettings.volume > m_lastReportedSpeakerSettings.volume) {
                 // Alert is sounding with volume higher than Base Volume. Assume that it was adjusted because of
                 // content being played and reset it to the base one. Keep lower values, though.
+                // Do not send a volumeChanged event
                 m_speakerManager->setVolume(
                     ChannelVolumeInterface::Type::AVS_ALERTS_VOLUME,
                     m_lastReportedSpeakerSettings.volume,
                     SpeakerManagerInterface::NotificationProperties(
-                        SpeakerManagerObserverInterface::Source::DIRECTIVE));
+                        SpeakerManagerObserverInterface::Source::DIRECTIVE, false, false));
             }
         }
     }
@@ -527,10 +605,11 @@ AlertsCapabilityAgent::AlertsCapabilityAgent(
     std::shared_ptr<storage::AlertStorageInterface> alertStorage,
     std::shared_ptr<audio::AlertsAudioFactoryInterface> alertsAudioFactory,
     std::shared_ptr<renderer::RendererInterface> alertRenderer,
-    std::shared_ptr<registrationManager::CustomerDataManager> dataManager,
+    std::shared_ptr<registrationManager::CustomerDataManagerInterface> dataManager,
     std::shared_ptr<settings::AlarmVolumeRampSetting> alarmVolumeRampSetting,
     std::shared_ptr<settings::DeviceSettingsManager> settingsManager,
-    std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface> metricRecorder) :
+    std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface> metricRecorder,
+    std::shared_ptr<acsdkSystemClockMonitorInterfaces::SystemClockNotifierInterface> systemClockMonitor) :
         CapabilityAgent("Alerts", exceptionEncounteredSender),
         RequiresShutdown("AlertsCapabilityAgent"),
         CustomerDataHandler(dataManager),
@@ -548,7 +627,8 @@ AlertsCapabilityAgent::AlertsCapabilityAgent(
         m_alertIsSounding{false},
         m_startSystemClock{std::clock()},
         m_alarmVolumeRampSetting{alarmVolumeRampSetting},
-        m_settingsManager{settingsManager} {
+        m_settingsManager{settingsManager},
+        m_systemClockMonitor{systemClockMonitor} {
     m_capabilityConfigurations.insert(getAlertsCapabilityConfiguration());
 }
 
@@ -621,6 +701,10 @@ static void submitMetricWithMetadata(
 }
 
 void AlertsCapabilityAgent::doShutdown() {
+    if (m_systemClockMonitor) {
+        m_systemClockMonitor->removeObserver(shared_from_this());
+        m_systemClockMonitor.reset();
+    }
     m_executor.shutdown();
     releaseChannel();
     m_messageSender.reset();
@@ -884,7 +968,8 @@ void AlertsCapabilityAgent::sendEvent(
     const std::string& eventName,
     const std::string& alertToken,
     bool isCertified,
-    const std::string& scheduledTime) {
+    const std::string& scheduledTime,
+    const std::string& eventTime) {
     submitMetric(m_metricRecorder, eventName, 1);
     rapidjson::Document payload(kObjectType);
     rapidjson::Document::AllocatorType& alloc = payload.GetAllocator();
@@ -893,9 +978,9 @@ void AlertsCapabilityAgent::sendEvent(
 
     if (ALERT_STARTED_EVENT_NAME == eventName || ALERT_STOPPED_EVENT_NAME == eventName) {
         payload.AddMember(StringRef(EVENT_PAYLOAD_SCHEDULED_TIME_KEY), scheduledTime, alloc);
-        payload.AddMember(StringRef(EVENT_PAYLOAD_EVENT_TIME_KEY), currentISO8601TimeUTC(), alloc);
+        payload.AddMember(StringRef(EVENT_PAYLOAD_EVENT_TIME_KEY), eventTime, alloc);
         if (!m_isConnected && (ALERT_STOPPED_EVENT_NAME == eventName)) {
-            m_alertScheduler.saveOfflineStoppedAlert(alertToken, scheduledTime);
+            m_alertScheduler.saveOfflineStoppedAlert(alertToken, scheduledTime, eventTime);
             return;
         }
     }
@@ -1066,8 +1151,9 @@ void AlertsCapabilityAgent::executeOnConnectionStatusChanged(const Status status
                  ++itr) {
                 std::string token = (*itr)[OFFLINE_STOPPED_ALERT_TOKEN_KEY].GetString();
                 std::string scheduledTime = (*itr)[OFFLINE_STOPPED_ALERT_SCHEDULED_TIME_KEY].GetString();
+                std::string eventTime = (*itr)[OFFLINE_STOPPED_ALERT_EVENT_TIME_KEY].GetString();
                 int id = (*itr)[OFFLINE_STOPPED_ALERT_ID_KEY].GetInt();
-                sendEvent(ALERT_STOPPED_EVENT_NAME, token, true, scheduledTime);
+                sendEvent(ALERT_STOPPED_EVENT_NAME, token, true, scheduledTime, eventTime);
                 m_alertScheduler.deleteOfflineStoppedAlert(token, id);
             }
         }
@@ -1090,7 +1176,7 @@ void AlertsCapabilityAgent::executeOnAlertStateChange(
             break;
 
         case AlertObserverInterface::State::STARTED:
-            sendEvent(ALERT_STARTED_EVENT_NAME, alertToken, true, reason);
+            sendEvent(ALERT_STARTED_EVENT_NAME, alertToken, true, reason, currentISO8601TimeUTC());
             alertVolume = getAlertVolume();
             if ((alertVolume != -1) && (alertVolume < ALERT_VOLUME_METRIC_LIMIT)) {
                 submitMetric(m_metricRecorder, ALERT_RINGING_LESS_THAN_30_PERCENT_MAX_VOLUME, 1);
@@ -1109,13 +1195,13 @@ void AlertsCapabilityAgent::executeOnAlertStateChange(
             break;
 
         case AlertObserverInterface::State::STOPPED:
-            sendEvent(ALERT_STOPPED_EVENT_NAME, alertToken, true, reason);
+            sendEvent(ALERT_STOPPED_EVENT_NAME, alertToken, true, reason, currentISO8601TimeUTC());
             releaseChannel();
             updateContextManager();
             break;
 
         case AlertObserverInterface::State::COMPLETED:
-            sendEvent(ALERT_STOPPED_EVENT_NAME, alertToken, true, reason);
+            sendEvent(ALERT_STOPPED_EVENT_NAME, alertToken, true, reason, currentISO8601TimeUTC());
             releaseChannel();
             updateContextManager();
             break;
@@ -1126,7 +1212,7 @@ void AlertsCapabilityAgent::executeOnAlertStateChange(
             break;
 
         case AlertObserverInterface::State::PAST_DUE:
-            sendEvent(ALERT_STOPPED_EVENT_NAME, alertToken, true);
+            sendEvent(ALERT_STOPPED_EVENT_NAME, alertToken, true, reason, currentISO8601TimeUTC());
             submitAlertCanceledMetricWithMetadata(alertToken, alertType, reason);
             break;
 
@@ -1153,11 +1239,12 @@ void AlertsCapabilityAgent::executeOnAlertStateChange(
             if (getSpeakerVolumeSettings(&contentSpeakerSettings)) {
                 if (m_lastReportedSpeakerSettings.volume < contentSpeakerSettings.volume) {
                     // Adjust alerts volume to be at least as loud as content volume
+                    // Do not send a volumeChanged event
                     m_speakerManager->setVolume(
                         ChannelVolumeInterface::Type::AVS_ALERTS_VOLUME,
                         contentSpeakerSettings.volume,
                         SpeakerManagerInterface::NotificationProperties(
-                            SpeakerManagerObserverInterface::Source::DIRECTIVE));
+                            SpeakerManagerObserverInterface::Source::DIRECTIVE, false, false));
                 }
             }
         }

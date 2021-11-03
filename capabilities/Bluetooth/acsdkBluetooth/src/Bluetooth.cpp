@@ -552,66 +552,97 @@ static std::string convertToAVSConnectedState(const DeviceState& state) {
     return "UNKNOWN";
 }
 
-std::shared_ptr<Bluetooth> Bluetooth::create(
-    std::shared_ptr<ContextManagerInterface> contextManager,
-    std::shared_ptr<FocusManagerInterface> focusManager,
-    std::shared_ptr<MessageSenderInterface> messageSender,
-    std::shared_ptr<ExceptionEncounteredSenderInterface> exceptionEncounteredSender,
-    std::shared_ptr<BluetoothStorageInterface> bluetoothStorage,
-    std::unique_ptr<BluetoothDeviceManagerInterface> deviceManager,
+std::shared_ptr<Bluetooth> Bluetooth::createBluetoothCapabilityAgent(
+    std::shared_ptr<avsCommon::sdkInterfaces::ContextManagerInterface> contextManager,
+    std::shared_ptr<avsCommon::sdkInterfaces::MessageSenderInterface> messageSender,
+    std::shared_ptr<avsCommon::sdkInterfaces::ExceptionEncounteredSenderInterface> exceptionEncounteredSender,
+    std::shared_ptr<acsdkBluetoothInterfaces::BluetoothStorageInterface> bluetoothStorage,
+    std::shared_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceManagerInterface> deviceManager,
     std::shared_ptr<avsCommon::utils::bluetooth::BluetoothEventBus> eventBus,
-    std::shared_ptr<MediaPlayerInterface> mediaPlayer,
-    std::shared_ptr<registrationManager::CustomerDataManager> customerDataManager,
-    std::unordered_set<std::shared_ptr<acsdkBluetooth::BluetoothDeviceConnectionRuleInterface>> enabledConnectionRules,
-    std::shared_ptr<ChannelVolumeInterface> bluetoothChannelVolumeInterface,
-    std::shared_ptr<BluetoothMediaInputTransformer> mediaInputTransformer) {
+    std::shared_ptr<registrationManager::CustomerDataManagerInterface> customerDataManager,
+    std::shared_ptr<acsdkApplicationAudioPipelineFactoryInterfaces::ApplicationAudioPipelineFactoryInterface>
+        audioPipelineFactory,
+    acsdkManufactory::Annotated<
+        avsCommon::sdkInterfaces::AudioFocusAnnotation,
+        avsCommon::sdkInterfaces::FocusManagerInterface> audioFocusManager,
+    std::shared_ptr<acsdkShutdownManagerInterfaces::ShutdownNotifierInterface> shutdownNotifier,
+    acsdkManufactory::Annotated<
+        avsCommon::sdkInterfaces::endpoints::DefaultEndpointAnnotation,
+        avsCommon::sdkInterfaces::endpoints::EndpointCapabilitiesRegistrarInterface> endpointCapabilitiesRegistrar,
+    std::shared_ptr<acsdkBluetoothInterfaces::BluetoothDeviceConnectionRulesProviderInterface> connectionRulesProvider,
+    std::shared_ptr<BluetoothMediaInputTransformer> mediaInputTransformer,
+    std::shared_ptr<acsdkBluetoothInterfaces::BluetoothNotifierInterface> bluetoothNotifier) {
     ACSDK_DEBUG5(LX(__func__));
 
-    if (!contextManager) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullContextManager"));
-    } else if (!focusManager) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullFocusManager"));
-    } else if (!messageSender) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullMessageSender"));
-    } else if (!exceptionEncounteredSender) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullExceptionEncounteredSender"));
-    } else if (!bluetoothStorage) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullBluetoothStorage"));
-    } else if (!deviceManager) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullDeviceManager"));
-    } else if (!eventBus) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullEventBus"));
-    } else if (!mediaPlayer) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullMediaPlayer"));
-    } else if (!customerDataManager) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullCustomerDataManager"));
-    } else if (!validateDeviceConnectionRules(enabledConnectionRules)) {
-        ACSDK_ERROR(LX(__func__).d("reason", "invalidBluetoothDeviceConnectionRules"));
-    } else if (!bluetoothChannelVolumeInterface) {
-        ACSDK_ERROR(LX(__func__).d("reason", "nullBluetoothChannelVolumeInterface"));
-    } else {
-        auto bluetooth = std::shared_ptr<Bluetooth>(new Bluetooth(
-            contextManager,
-            focusManager,
-            messageSender,
-            exceptionEncounteredSender,
-            bluetoothStorage,
-            deviceManager,
-            eventBus,
-            mediaPlayer,
-            customerDataManager,
-            enabledConnectionRules,
-            bluetoothChannelVolumeInterface,
-            mediaInputTransformer));
-
-        if (bluetooth->init()) {
-            return bluetooth;
-        } else {
-            ACSDK_ERROR(LX(__func__).d("reason", "initFailed"));
-        }
+    if (!contextManager || !messageSender || !exceptionEncounteredSender || !bluetoothStorage || !deviceManager ||
+        !eventBus || !customerDataManager || !audioPipelineFactory || !audioFocusManager || !shutdownNotifier ||
+        !endpointCapabilitiesRegistrar || !connectionRulesProvider || !bluetoothNotifier) {
+        ACSDK_ERROR(LX("createBluetoothCapabilityAgentInterfaceFailed")
+                        .d("isContextManagerNull", !contextManager)
+                        .d("isMessageSenderNull", !messageSender)
+                        .d("isExceptionEncounteredSenderNull", !exceptionEncounteredSender)
+                        .d("isBluetoothStorageNull", !bluetoothStorage)
+                        .d("isDeviceManagerNull", !deviceManager)
+                        .d("isEventBusNull", !eventBus)
+                        .d("isCustomerDataManagerNull", !customerDataManager)
+                        .d("isAudioPipelineFactoryNull", !audioPipelineFactory)
+                        .d("isAudioFocusManagerNull", !audioFocusManager)
+                        .d("isShutdownNotifierNull", !shutdownNotifier)
+                        .d("isEndpointCapabilitiesRegistrarNull", !endpointCapabilitiesRegistrar)
+                        .d("isConnectionRulesProviderNull", !connectionRulesProvider)
+                        .d("isBluetoothNotifierNull", !bluetoothNotifier));
+        return nullptr;
     }
 
-    return nullptr;
+    std::shared_ptr<avsCommon::sdkInterfaces::FocusManagerInterface> focusManager = audioFocusManager;
+
+    auto enabledConnectionRules = connectionRulesProvider->getRules();
+    if (!validateDeviceConnectionRules(enabledConnectionRules)) {
+        ACSDK_ERROR(
+            LX("createBluetoothCapabilityAgentInterfaceFailed").d("reason", "invalidBluetoothDeviceConnectionRules"));
+        return nullptr;
+    }
+
+    auto applicationMediaInterfaces =
+        audioPipelineFactory->createApplicationMediaInterfaces(BLUETOOTH_MEDIA_PLAYER_NAME);
+    if (!applicationMediaInterfaces) {
+        ACSDK_ERROR(LX("createBluetoothCapabilityAgentInterfaceFailed")
+                        .d("reason", "failed to create media player or related interfaces"));
+        return nullptr;
+    }
+
+    auto mediaPlayer = applicationMediaInterfaces->mediaPlayer;
+    auto channelVolume = applicationMediaInterfaces->channelVolume;
+    if (!mediaPlayer || !channelVolume) {
+        ACSDK_ERROR(LX("createBluetoothCapabilityAgentInterfaceFailed")
+                        .d("reason", "failed to create media player or related interfaces"));
+        return nullptr;
+    }
+
+    auto bluetooth = std::shared_ptr<Bluetooth>(new Bluetooth(
+        contextManager,
+        focusManager,
+        messageSender,
+        exceptionEncounteredSender,
+        bluetoothStorage,
+        deviceManager,
+        eventBus,
+        mediaPlayer,
+        customerDataManager,
+        enabledConnectionRules,
+        channelVolume,
+        mediaInputTransformer,
+        bluetoothNotifier));
+
+    if (!bluetooth->init()) {
+        ACSDK_ERROR(LX(__func__).d("reason", "initFailed"));
+        return nullptr;
+    }
+
+    endpointCapabilitiesRegistrar->withCapability(bluetooth, bluetooth);
+    shutdownNotifier->addObserver(bluetooth);
+
+    return bluetooth;
 }
 
 bool Bluetooth::init() {
@@ -674,15 +705,16 @@ Bluetooth::Bluetooth(
     std::shared_ptr<FocusManagerInterface> focusManager,
     std::shared_ptr<MessageSenderInterface> messageSender,
     std::shared_ptr<ExceptionEncounteredSenderInterface> exceptionEncounteredSender,
-    std::shared_ptr<BluetoothStorageInterface> bluetoothStorage,
-    std::unique_ptr<BluetoothDeviceManagerInterface>& deviceManager,
+    std::shared_ptr<acsdkBluetoothInterfaces::BluetoothStorageInterface> bluetoothStorage,
+    std::shared_ptr<BluetoothDeviceManagerInterface> deviceManager,
     std::shared_ptr<avsCommon::utils::bluetooth::BluetoothEventBus> eventBus,
     std::shared_ptr<MediaPlayerInterface> mediaPlayer,
-    std::shared_ptr<registrationManager::CustomerDataManager> customerDataManager,
+    std::shared_ptr<registrationManager::CustomerDataManagerInterface> customerDataManager,
     std::unordered_set<std::shared_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceConnectionRuleInterface>>
         enabledConnectionRules,
     std::shared_ptr<ChannelVolumeInterface> bluetoothChannelVolumeInterface,
-    std::shared_ptr<BluetoothMediaInputTransformer> mediaInputTransformer) :
+    std::shared_ptr<BluetoothMediaInputTransformer> mediaInputTransformer,
+    std::shared_ptr<acsdkBluetoothInterfaces::BluetoothNotifierInterface> bluetoothNotifier) :
         CapabilityAgent{NAMESPACE, exceptionEncounteredSender},
         RequiresShutdown{"Bluetooth"},
         CustomerDataHandler{customerDataManager},
@@ -694,13 +726,15 @@ Bluetooth::Bluetooth(
         m_scanningTransitionState{ScanningTransitionState::INACTIVE},
         m_focusState{FocusState::NONE},
         m_sourceId{MediaPlayerInterface::ERROR},
-        m_deviceManager{std::move(deviceManager)},
+        m_deviceManager{deviceManager},
         m_mediaPlayer{mediaPlayer},
         m_db{bluetoothStorage},
         m_eventBus{eventBus},
         m_mediaInputTransformer{mediaInputTransformer},
         m_mediaStream{nullptr},
-        m_bluetoothChannelVolumeInterface{bluetoothChannelVolumeInterface} {
+        m_bluetoothChannelVolumeInterface{bluetoothChannelVolumeInterface},
+        m_bluetoothNotifier{bluetoothNotifier},
+        m_pendingFocusTransitions{0} {
     m_capabilityConfigurations.insert(getBluetoothCapabilityConfiguration());
 
     for (const auto& connectionRule : enabledConnectionRules) {
@@ -780,7 +814,6 @@ void Bluetooth::doShutdown() {
     m_deviceManager.reset();
     m_eventBus.reset();
 
-    m_observers.clear();
     m_bluetoothEventStates.clear();
     m_connectedDevices.clear();
 }
@@ -1223,8 +1256,6 @@ void Bluetooth::executeEnterBackground(MixingBehavior behavior) {
 
 // Either you were kicked off or you're done with the channel.
 void Bluetooth::executeEnterNone() {
-    ACSDK_DEBUG5(LX(__func__).d("streamingState", streamingStateToString(m_streamingState)));
-
     /**
      * Restore channel volume when losing focus.
      * Note that this call will be no-op if channel was not attenuated at this point.
@@ -1238,6 +1269,8 @@ void Bluetooth::executeEnterNone() {
         executeAbortMediaPlayback();
         return;
     }
+
+    ACSDK_DEBUG5(LX(__func__).d("streamingState", streamingStateToString(m_streamingState)));
 
     if (FocusTransitionState::EXTERNAL == m_focusTransitionState) {
         auto a2dpSource = getService<A2DPSourceInterface>(m_activeA2DPDevice);
@@ -1268,9 +1301,6 @@ void Bluetooth::executeEnterNone() {
         switch (m_streamingState) {
             case StreamingState::ACTIVE:
             case StreamingState::PENDING_ACTIVE:
-                if (avrcpTarget && !avrcpTarget->pause()) {
-                    ACSDK_ERROR(LX(__func__).d("reason", "avrcpPauseFailed"));
-                }
                 m_streamingState = StreamingState::PENDING_PAUSED;
                 if (!m_mediaPlayer->stop(m_sourceId)) {
                     ACSDK_ERROR(LX(__func__).d("reason", "stopFailed").d("sourceId", m_sourceId));
@@ -1291,9 +1321,20 @@ void Bluetooth::executeEnterNone() {
 }
 
 void Bluetooth::onFocusChanged(FocusState newFocus, MixingBehavior behavior) {
-    ACSDK_DEBUG5(LX(__func__).d("current", m_focusState).d("new", newFocus).d("MixingBehavior", behavior));
-
     m_executor.submit([this, newFocus, behavior] {
+        if (FocusState::NONE == newFocus && FocusTransitionState::PENDING_INTERNAL == m_focusTransitionState) {
+            m_focusTransitionState = FocusTransitionState::INTERNAL;
+        } else if (FocusState::NONE != newFocus && FocusTransitionState::PENDING_INTERNAL != m_focusTransitionState) {
+            m_focusTransitionState = FocusTransitionState::EXTERNAL;
+        }
+
+        ACSDK_DEBUG5(LX("onFocusChanged")
+                         .d("current", m_focusState)
+                         .d("new", newFocus)
+                         .d("focusTransitionState", m_focusTransitionState)
+                         .d("streamingstate", m_streamingState)
+                         .d("m_pendingFocusTransitions", m_pendingFocusTransitions));
+
         switch (newFocus) {
             case FocusState::FOREGROUND: {
                 executeEnterForeground();
@@ -1309,13 +1350,16 @@ void Bluetooth::onFocusChanged(FocusState newFocus, MixingBehavior behavior) {
             }
         }
 
-        if (FocusState::NONE == newFocus && FocusTransitionState::PENDING_INTERNAL == m_focusTransitionState) {
-            m_focusTransitionState = FocusTransitionState::INTERNAL;
-        } else if (FocusState::NONE != newFocus && FocusTransitionState::PENDING_INTERNAL != m_focusTransitionState) {
-            m_focusTransitionState = FocusTransitionState::EXTERNAL;
-        }
-
         m_focusState = newFocus;
+
+        /**
+         * If this is an expected focus transition, decrement the counter tracking
+         * pending focus transitions. Once all focus requests are processed, set
+         * the @c FocusTransitionState to NONE.
+         */
+        if (m_pendingFocusTransitions && (--m_pendingFocusTransitions == 0)) {
+            m_focusTransitionState = FocusTransitionState::NONE;
+        }
     });
 }
 
@@ -1985,9 +2029,11 @@ void Bluetooth::executeOnDeviceConnect(std::shared_ptr<BluetoothDeviceInterface>
 
     // Notify observers when a bluetooth device is connected.
     if (shouldNotifyConnection) {
-        for (const auto& observer : m_observers) {
-            observer->onActiveDeviceConnected(generateDeviceAttributes(device));
-        }
+        auto attributes = generateDeviceAttributes(device);
+        m_bluetoothNotifier->notifyObservers(
+            [attributes](std::shared_ptr<acsdkBluetoothInterfaces::BluetoothDeviceObserverInterface> observer) {
+                observer->onActiveDeviceConnected(attributes);
+            });
     }
 
     // Reinsert into the database for ordering.
@@ -2036,9 +2082,11 @@ void Bluetooth::executeOnDeviceDisconnect(
     }
 
     // Notify observers when a bluetooth device is disconnected.
-    for (const auto& observer : m_observers) {
-        observer->onActiveDeviceDisconnected(generateDeviceAttributes(device));
-    }
+    auto attributes = generateDeviceAttributes(device);
+    m_bluetoothNotifier->notifyObservers(
+        [attributes](std::shared_ptr<acsdkBluetoothInterfaces::BluetoothDeviceObserverInterface> observer) {
+            observer->onActiveDeviceDisconnected(attributes);
+        });
 
     executeInsertBluetoothEventState(
         device, DeviceState::DISCONNECTED, Optional<Requester>(requester), Optional<std::string>());
@@ -2802,12 +2850,14 @@ void Bluetooth::executeAcquireFocus(const std::string& callingMethodName) {
         ACSDK_ERROR(LX(__func__).d("reason", "acquireChannelFailed").d("callingMethodName", callingMethodName));
     } else {
         ACSDK_DEBUG1(LX(__func__).d("callingMethodName", callingMethodName).m("Acquiring channel"));
+        m_pendingFocusTransitions++;
     }
 }
 
 void Bluetooth::executeReleaseFocus(const std::string& callingMethodName) {
     m_focusManager->releaseChannel(CHANNEL_NAME, shared_from_this());
     m_focusTransitionState = FocusTransitionState::PENDING_INTERNAL;
+    m_pendingFocusTransitions++;
     ACSDK_DEBUG1(LX(__func__).d("callingMethodName", callingMethodName).m("Releasing channel"));
 }
 
@@ -2949,22 +2999,6 @@ void Bluetooth::executeUnrestrictA2DPDevices() {
         }
         m_disabledA2DPDevice.reset();
     }
-}
-
-void Bluetooth::addObserver(std::shared_ptr<ObserverInterface> observer) {
-    if (!observer) {
-        ACSDK_ERROR(LX("addObserverFailed").d("reason", "nullObserver"));
-        return;
-    }
-    m_executor.submit([this, observer]() { m_observers.insert(observer); });
-}
-
-void Bluetooth::removeObserver(std::shared_ptr<ObserverInterface> observer) {
-    if (!observer) {
-        ACSDK_ERROR(LX("removeObserverFailed").d("reason", "nullObserver"));
-        return;
-    }
-    m_executor.submit([this, observer]() { m_observers.erase(observer); });
 }
 
 Bluetooth::ObserverInterface::DeviceAttributes Bluetooth::generateDeviceAttributes(
@@ -3218,12 +3252,11 @@ void Bluetooth::onEventFired(const avsCommon::utils::bluetooth::BluetoothEvent& 
 
                             auto it = m_connectedDevices.find(category);
 
-                            if (it == m_connectedDevices.end() ||
-                                (it != m_connectedDevices.end() && it->second.find(device) == it->second.end())) {
+                            if (it == m_connectedDevices.end() || it->second.find(device) == it->second.end()) {
                                 executeOnDeviceConnect(device, true);
                                 /*
-                                 * Default to sending a ConnectByDeviceIds event since this wasn't a result of a profile
-                                 * specific connection.
+                                 * Default to sending a ConnectByDeviceIds event since this wasn't a result of a
+                                 * profile specific connection.
                                  */
                                 std::unordered_set<
                                     std::shared_ptr<avsCommon::sdkInterfaces::bluetooth::BluetoothDeviceInterface>>

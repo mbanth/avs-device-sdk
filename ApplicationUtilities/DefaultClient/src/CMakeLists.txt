@@ -5,10 +5,10 @@ add_library(DefaultClient SHARED
     ConnectionRetryTrigger.cpp
     DefaultClient.cpp
     DefaultClientComponent.cpp
-    DeviceSettingsManagerBuilder.cpp
     EqualizerRuntimeSetup.cpp
     StubApplicationAudioPipelineFactory.cpp
     )
+
 target_include_directories(DefaultClient PUBLIC
     "${DefaultClient_SOURCE_DIR}/include"
     "${DeviceSettings_SOURCE_DIR}/include"
@@ -20,6 +20,8 @@ if(BLUETOOTH_BLUEZ)
 endif()
 
 target_link_libraries(DefaultClient
+    ${ACSDKDEVICESETTINGSMANAGER_LIB}
+    ${ACSDKSPEECHENCODER_LIB}
     ACL
     acsdkApplicationAudioPipelineFactoryInterfaces
     acsdkCore
@@ -39,7 +41,6 @@ target_link_libraries(DefaultClient
     DeviceSettings
     acsdkDoNotDisturb
     Endpoints
-    InteractionModel
     InterruptModel
     acsdkNotifications
     PlaybackController
@@ -51,12 +52,19 @@ target_link_libraries(DefaultClient
     SystemSoundPlayer
     TemplateRuntime
     acsdkAlerts
+    acsdkAlertsInterfaces
     acsdkAudioPlayer
     acsdkBluetooth
+    acsdkBluetoothInterfaces
     acsdkEqualizer
     acsdkExternalMediaPlayer
+    acsdkInteractionModel
     acsdkStartupManagerInterfaces
-    )
+    acsdkSystemClockMonitorInterfaces
+    acsdkDeviceSetup
+    acsdkDeviceSetupInterfaces
+    acsdkAuthorization
+    acsdkAuthorizationInterfaces)
 
 if (CAPTIONS)
     target_link_libraries(DefaultClient CaptionsLib)
@@ -64,6 +72,10 @@ endif()
 
 if (PCC)
     target_link_libraries(DefaultClient PhoneCallController)
+endif()
+
+if (MC)
+    target_link_libraries(DefaultClient acsdkMessagingController)
 endif()
 
 if (MCC)

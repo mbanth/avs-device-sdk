@@ -61,6 +61,56 @@
 namespace alexaClientSDK {
 namespace acsdkAudioPlayer {
 
+/// Splitting AudioPlayer internal state from the external facing PlayerActivity
+/// the change here is trivial, but the sematics of BUFFERING vs BUFFER_UNDERRUN are slightly different
+/// so, this was a recommended path from the sdk team
+enum class AudioPlayerState {
+    /// Initial state, prior to acting on the first @c Play directive, or after the current queue is finished
+    IDLE,
+    /// Indicates that an audio stream is pre-buffering, but is not ready to play.
+    BUFFERING,
+    /// Indicates that an audio stream under-run has interrupted playback
+    /// The difference between BUFFERING and BUFFER_UNDERRUN only affects a couple of behaviors
+    BUFFER_UNDERRUN,
+    /// Indicates that audio is currently playing.
+    PLAYING,
+    /**
+     * Indicates that audio playback was stopped due to an error or a directive which stops or replaces the current
+     * stream.
+     */
+    STOPPED,
+    /// Indicates that the audio stream has been paused.
+    PAUSED,
+    /// Indicates that playback has finished.
+    FINISHED
+};
+
+/*
+ * Convert a @c AudioPlayerState to @c std::string.
+ *
+ * @param state The @c AudioPlayerState to convert.
+ * @return The string representation of @c AudioPlayerState.
+ */
+inline std::string playerStateToString(AudioPlayerState state) {
+    switch (state) {
+        case AudioPlayerState::IDLE:
+            return "IDLE";
+        case AudioPlayerState::PLAYING:
+            return "PLAYING";
+        case AudioPlayerState::STOPPED:
+            return "STOPPED";
+        case AudioPlayerState::PAUSED:
+            return "PAUSED";
+        case AudioPlayerState::BUFFERING:
+            return "BUFFERING";
+        case AudioPlayerState::BUFFER_UNDERRUN:
+            return "BUFFER_UNDERRUN";
+        case AudioPlayerState::FINISHED:
+            return "FINISHED";
+    }
+    return "unknown AudioPlayerState";
+}
+
 /**
  * This class implements the @c AudioPlayer capability agent.
  *
@@ -240,11 +290,41 @@ public:
 
 private:
     /**
+     * A utility class to manage interaction with the MessageSender.
+     */
+    class MessageRequestObserver : public avsCommon::avs::MessageRequest {
+    public:
+        /**
+         * Constructor.
+         *
+         * @param metricRecorder The metric recorder.
+         * @param jsonContent The JSON text to be sent to AVS.
+         * @param uriPathExtension An optional URI path extension of the message to be appended to the base url of the
+         * AVS endpoint. If not specified, the default AVS path extension will be used.
+         */
+        MessageRequestObserver(
+            std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface> metricRecorder,
+            const std::string& jsonContent,
+            const std::string& uriPathExtension = "");
+
+        /// @name MessageRequest functions.
+        /// @{
+        void sendCompleted(
+            avsCommon::sdkInterfaces::MessageRequestObserverInterface::Status sendMessageStatus) override;
+        /// @}
+    private:
+        /// The metric recorder.
+        std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface> mMetricRecorder;
+    };
+    /**
      * This structure contain the necessary objects from the @c PLAY directive that are used for playing the audio.
      */
     struct PlayDirectiveInfo {
         /// MessageId from the @c PLAY directive.
         const std::string messageId;
+
+        /// DialogRequestId from the PLAY directive.
+        const std::string dialogRequestId;
 
         /// MessageId from the @c STOP directive for this item.
         std::string stopMessageId;
@@ -281,18 +361,25 @@ private:
         /// so if we get the 'buffer complete' notification before the track is playing, cache the info here
         bool isBuffered;
 
+        /// True if PlaybackNearlyFinished has been sent for this track
+        bool isPNFSent;
+
         /// True if audio normalization should be enabled for this track
         bool normalizationEnabled;
 
         /// Duration builder for queue time metric
         avsCommon::utils::metrics::DataPointDurationBuilder queueTimeMetricData;
 
+        /// Cached metadata.
+        std::shared_ptr<const VectorOfTags> cachedMetadata;
+
         /**
          * Constructor.
          *
-         * @param messageId The message ID of the @c PLAY directive.
+         * @param messageId The message Id of the @c PLAY directive.
+         * @param dialogRequestId The dialog request Id of the @c PLAY directive.
          */
-        PlayDirectiveInfo(const std::string& messageId);
+        PlayDirectiveInfo(const std::string& messageId, const std::string& dialogRequestId);
     };
 
     /**
@@ -397,7 +484,7 @@ private:
 
     /**
      * This function provides updated context information for @c AudioPlayer to @c ContextManager.  This function is
-     * called when @c ContextManager calls @c provideState(), and is also called internally by @c changeActivity().
+     * called when @c ContextManager calls @c provideState(), and is also called internally by @c changeState().
      *
      * @param sendToken flag indicating whether @c stateRequestToken contains a valid token which should be passed
      *     along to @c ContextManager.  This flag defaults to @c false.
@@ -414,6 +501,7 @@ private:
      * @li If focus changes to @c BACKGROUND while playing (when another component acquires focus on a higher-priority
      *     channel), @c AudioPlayer will pause playback until it regains @c FOREGROUND focus.
      * @li If focus changes to @c FOREGROUND while paused, @c AudioPlayer will resume playing.
+     * @li If focus changes to @c NONE, all playback will be stopped.
      * @li If focus changes to @c NONE, all playback will be stopped.
      *
      * @param newFocus The focus state to change to.
@@ -591,6 +679,11 @@ private:
     void executeLocalOperation(PlaybackOperation op, std::promise<bool> success);
 
     /**
+     * This function processes timeout of a local operation
+     */
+    void executeLocalOperationTimedout();
+
+    /**
      * This function seeks into the current song.
      *
      * @param location Location to seek to
@@ -608,9 +701,9 @@ private:
     /**
      * This function changes the @c AudioPlayer state.  All state changes are made by calling this function.
      *
-     * @param activity The state to change to.
+     * @param state The state to change to.
      */
-    void changeActivity(avsCommon::avs::PlayerActivity activity);
+    void changeState(AudioPlayerState state);
 
     /**
      * Most of the @c AudioPlayer events use the same payload, and only vary in their event name.  This utility
@@ -868,6 +961,50 @@ private:
      */
     std::string getTrackProtectionName(const avsCommon::utils::mediaPlayer::MediaPlayerState& mediaPlayerState) const;
 
+    /**
+     * Return displayable track playlist type from the media player state
+     *
+     * @param state media player state
+     *
+     * @return playlist type
+     */
+    std::string getPlaylistType(const avsCommon::utils::mediaPlayer::MediaPlayerState& mediaPlayerState) const;
+
+    /**
+     * Return displayable track playlist type
+     *
+     * @param mediaPlayaerState media player state
+     *
+     * @return playlist type
+     */
+    std::string getPlaylistType(const std::string& playlistType) const;
+
+    /**
+     * Re-package the cached device context for AudioPlayer to a format compatible with
+     * events.
+     *
+     * @param offsetOverride if valid override the offset in the context with this value
+     * @return json string of the context
+     */
+    std::string packageContextForEvent(
+        std::chrono::milliseconds offsetOverride = avsCommon::utils::mediaPlayer::MEDIA_PLAYER_INVALID_OFFSET) const;
+
+    /**
+     * Convert from internal state to external activity
+     *
+     * @param state Internal state value
+     * @returns External Activity equivelent
+     */
+    avsCommon::avs::PlayerActivity activityFromState(AudioPlayerState state) const;
+
+    /**
+     * Get hash of the domain name of the passed url
+     *
+     * @param url url to parse
+     * @returns hash of the domain if succeeds, empty string otherwise.
+     */
+    std::string getDomainNameHash(const std::string& url) const;
+
     /// This is used to safely access the time utilities.
     avsCommon::utils::timing::TimeUtils m_timeUtils;
 
@@ -904,16 +1041,16 @@ private:
      * Focus change notifications are required to block until the focus change completes, so @c onFocusChanged() blocks
      * waiting for a state change.  This is a read-only operation from outside the executor thread, so it doesn't break
      * thread-safety for reads inside the executor, but it does require that these reads from outside the executor lock
-     * @c m_currentActivityMutex, and that writes from inside the executor lock @c m_currentActivityMutex and notify
-     * @c m_currentActivityConditionVariable..
+     * @c m_currentStateMutex, and that writes from inside the executor lock @c m_currentStateutex and notify
+     * @c m_currentStateConditionVariable..
      */
-    avsCommon::avs::PlayerActivity m_currentActivity;
+    AudioPlayerState m_currentState;
 
-    /// Protects writes to @c m_currentActivity and waiting on @c m_currentActivityConditionVariable.
-    std::mutex m_currentActivityMutex;
+    /// Protects writes to @c m_currentState and waiting on @c m_currentStateConditionVariable.
+    std::mutex m_currentStateMutex;
 
-    /// Provides notifications of changes to @c m_currentActivity.
-    std::condition_variable m_currentActivityConditionVariable;
+    /// Provides notifications of changes to @c m_currentState.
+    std::condition_variable m_currentStateConditionVariable;
 
     /**
      * @name Executor Thread Variables
@@ -936,6 +1073,12 @@ private:
      * The PlayDirectiveInfo object containing information about the currently playing audioItem
      */
     std::shared_ptr<PlayDirectiveInfo> m_currentlyPlaying;
+
+    /**
+     * The PlayDirectiveInfo object containing information about an item being prepared to play next. Only present
+     * between preHandle and playback.
+     */
+    std::shared_ptr<PlayDirectiveInfo> m_itemPendingPlaybackStart;
 
     /// When in the @c BUFFER_UNDERRUN state, this records the time at which the state was entered.
     std::chrono::steady_clock::time_point m_bufferUnderrunTimestamp;
@@ -979,6 +1122,11 @@ private:
      * mediaprotection on playback started or on error.
      */
     avsCommon::utils::mediaPlayer::MediaPlayerState::MediaPlayerProtection m_currentMediaPlayerProtection;
+
+    /**
+     * Current PlaylistType information fetched from MediaPlayerState
+     */
+    std::string m_currentPlaylistType;
     /// @}
 
     /**
@@ -1030,6 +1178,9 @@ private:
     /// @c ChannelVolumeInterface instance to do volume adjustments with.
     std::vector<std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface>> m_audioChannelVolumeInterfaces;
 
+    /// Cached vopy of the device context set
+    std::string m_cachedContext;
+
     /**
      * @c Executor which queues up operations from asynchronous API calls.
      *
@@ -1037,6 +1188,12 @@ private:
      *     before the Executor Thread Variables are destroyed.
      */
     avsCommon::utils::threading::Executor m_executor;
+
+    /**
+     * The last dialogRequestId received. If a directive does not have a new DialogRequestId, assume it was sent as part
+     * of the same flow that triggered the previous dialog request id.
+     */
+    std::string m_lastDialogRequestId;
 };
 
 }  // namespace acsdkAudioPlayer

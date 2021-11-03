@@ -34,6 +34,7 @@
 #include <AVSCommon/SDKInterfaces/SpeakerManagerObserverInterface.h>
 #include <AVSCommon/SDKInterfaces/Endpoints/DefaultEndpointAnnotation.h>
 #include <AVSCommon/SDKInterfaces/Endpoints/EndpointCapabilitiesRegistrarInterface.h>
+#include <AVSCommon/Utils/functional/hash.h>
 #include <AVSCommon/Utils/Metrics/MetricRecorderInterface.h>
 #include <AVSCommon/Utils/RequiresShutdown.h>
 #include <AVSCommon/Utils/Threading/Executor.h>
@@ -47,9 +48,10 @@ namespace speakerManager {
 /**
  * This class implements a @c CapabilityAgent that handles the AVS @c Speaker API.
  *
- * The @c SpeakerManager can handle multiple @c ChannelVolumeInterface objects. @c ChannelVolumeInterface
- * are grouped by their respective @c ChannelVolumeInterface::Type, and the volume and mute state will be consistent
- * across each type. For example, to change the volume of all @c ChannelVolumeInterface objects of a specific type:
+ * The @c SpeakerManager can handle multiple @c ChannelVolumeInterface objects and dedupe them with
+ * the same getId() value. The @c ChannelVolumeInterface are grouped by their respective
+ * @c ChannelVolumeInterface::Type, and the volume and mute state will be consistent across each type.
+ * For example, to change the volume of all @c ChannelVolumeInterface objects of a specific type:
  *
  * @code{.cpp}
  *     // Use local setVolume API.
@@ -197,6 +199,50 @@ private:
         const int minUnmuteVolume,
         std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface> metricRecorder);
 
+    /// Hash functor to use identifier of @c ChannelVolumeInterface as the key in SpeakerSet.
+    struct ChannelVolumeInterfaceHash {
+    public:
+        size_t operator()(const std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface>& key) const {
+            if (nullptr == key) {
+                /// This should never happen because the only way to add a ChannelVolumeInterface into the SpeakerSet
+                /// has a guard of nullptr.
+                return 0;
+            }
+            return key->getId();
+        }
+    };
+
+    /// Comparator to compare two shared_ptrs of @c ChannelVolumeInterface objects in SpeakerSet.
+    struct ChannelVolumeInterfaceEqualTo {
+    public:
+        bool operator()(
+            const std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface> channelVolumeInterface1,
+            std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface> channelVolumeInterface2) const {
+            if (!channelVolumeInterface1 || !channelVolumeInterface2) {
+                /// This should never happen because the only way to add a ChannelVolumeInterface into the SpeakerSet
+                /// has a guard of nullptr.
+                return true;
+            }
+            return channelVolumeInterface1->getId() == channelVolumeInterface2->getId();
+        }
+    };
+
+    /// Alias for a set of @c ChannelVolumeInterface keyed by the id.
+    using SpeakerSet = std::unordered_set<
+        std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface>,
+        ChannelVolumeInterfaceHash,
+        ChannelVolumeInterfaceEqualTo>;
+
+    /**
+     * Internal function to add @c ChannelVolumeInterface object into SpeakerMap.
+     * Invalid element(nullptr or ChannelVolumeInterface with the same getId() value) is not allowed to be added into
+     * the map.
+     *
+     * @param channelVolumeInterface The @c ChannelVolumeInterface object.
+     */
+    void addChannelVolumeInterfaceIntoSpeakerMap(
+        std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface> channelVolumeInterface);
+
     /**
      * Parses the payload from a string into a rapidjson document.
      *
@@ -311,7 +357,7 @@ private:
     /**
      * Function to set a limit on the maximum volume. This runs on a worker thread.
      *
-     * @param type The type of speaker to modify mute for.
+     * @param type The type of speaker to set a limit on the maximum volume.
      * @return A bool indicating success.
      */
     bool executeSetMaximumVolumeLimit(const int8_t maximumVolumeLimit);
@@ -321,13 +367,33 @@ private:
      * Function to get the speaker settings for a specific @c ChannelVolumeInterface Type.
      * This runs on a worker thread.
      *
-     * @param type The type of speaker to modify mute for.
+     * @param type The type of speaker to get speaker settings.
      * @param[out] settings The settings if successful.
      * @return A bool indicating success.
      */
     bool executeGetSpeakerSettings(
         avsCommon::sdkInterfaces::ChannelVolumeInterface::Type type,
         avsCommon::sdkInterfaces::SpeakerInterface::SpeakerSettings* settings);
+
+    /**
+     * Function to set the speaker settings for a specific @c ChannelVolumeInterface Type.
+     * This runs on a worker thread.
+     *
+     * @param type The type of speaker to set speaker settings.
+     * @param settings The new settings.
+     * @return A bool indicating success.
+     */
+    bool executeSetSpeakerSettings(
+        const avsCommon::sdkInterfaces::ChannelVolumeInterface::Type type,
+        const avsCommon::sdkInterfaces::SpeakerInterface::SpeakerSettings& settings);
+
+    /**
+     * Function that initializes and populates @c m_speakerSettings for the given @c type's speaker settings.
+     *
+     * @param type The type of speaker to initialize
+     * @return A bool indicating success.
+     */
+    bool executeInitializeSpeakerSettings(avsCommon::sdkInterfaces::ChannelVolumeInterface::Type type);
 
     /**
      * Function to send events when settings have changed.
@@ -357,17 +423,6 @@ private:
         const avsCommon::sdkInterfaces::SpeakerInterface::SpeakerSettings& settings);
 
     /**
-     * Validates that all speakers with the given @c Type have the same @c SpeakerSettings.
-     *
-     * @param type The type of speaker to validate.
-     * @param[out] settings The settings that will be return if consistent.
-     * @return A bool indicating success.
-     */
-    bool validateSpeakerSettingsConsistency(
-        avsCommon::sdkInterfaces::ChannelVolumeInterface::Type type,
-        avsCommon::sdkInterfaces::SpeakerInterface::SpeakerSettings* settings);
-
-    /**
      * Get the maximum volume limit.
      *
      * @return The maximum volume limit.
@@ -381,9 +436,10 @@ private:
      * @tparam Args The argument types for the task to execute.
      * @param task A callable type representing a task.
      * @param args The arguments to call the task with.
+     * @return A bool indicating success.
      */
     template <typename Task, typename... Args>
-    void retryAndApplySettings(Task task, Args&&... args);
+    bool retryAndApplySettings(Task task, Args&&... args);
 
     /// The metric recorder.
     std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface> m_metricRecorder;
@@ -397,10 +453,13 @@ private:
     /// the @c volume to restore to when unmuting at 0 volume
     const int m_minUnmuteVolume;
 
-    /// A multimap contain ChannelVolumeInterfaces keyed by @c Type.
-    std::multimap<
+    /// An unordered_map contains ChannelVolumeInterfaces keyed by @c Type. Only internal function
+    /// addChannelVolumeInterfaceIntoSpeakerMap can insert an element into this map to ensure that no invalid element
+    /// is added. The @c ChannelVolumeInterface in the map is deduped by the getId() value.
+    std::unordered_map<
         avsCommon::sdkInterfaces::ChannelVolumeInterface::Type,
-        std::shared_ptr<avsCommon::sdkInterfaces::ChannelVolumeInterface>>
+        SpeakerSet,
+        avsCommon::utils::functional::EnumClassHash>
         m_speakerMap;
 
     /// The observers to be notified whenever any of the @c SpeakerSetting changing APIs are called.
@@ -420,6 +479,12 @@ private:
 
     /// maximumVolumeLimit The maximum volume level speakers in this system can reach.
     int8_t m_maximumVolumeLimit;
+
+    /// Mapping of each speaker type to its speaker settings.
+    std::map<
+        avsCommon::sdkInterfaces::ChannelVolumeInterface::Type,
+        avsCommon::sdkInterfaces::SpeakerInterface::SpeakerSettings>
+        m_speakerSettings;
 
     /// An executor to perform operations on a worker thread.
     avsCommon::utils::threading::Executor m_executor;

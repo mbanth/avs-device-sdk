@@ -50,6 +50,10 @@ static const auto WRITE_TIMEOUT_MS = std::chrono::milliseconds(100);
 /// The maximum number of packets to be buffered to the output stream.
 static constexpr unsigned int MAX_OUTPUT_PACKETS = 20;
 
+std::shared_ptr<SpeechEncoder> SpeechEncoder::createSpeechEncoder(const std::shared_ptr<EncoderContext>& encoder) {
+    return std::make_shared<speechencoder::SpeechEncoder>(encoder);
+}
+
 SpeechEncoder::SpeechEncoder(const std::shared_ptr<EncoderContext>& encoder) :
         m_encoder{encoder},
         m_isEncoding{false},
@@ -112,6 +116,7 @@ void SpeechEncoder::stopEncoding(bool stopImmediately) {
         // Stop after all frames are encoded
         m_stopRequested = true;
     }
+    m_executor.waitForSubmittedTasks();
 }
 
 std::shared_ptr<AudioInputStream> SpeechEncoder::getEncodedStream() {
@@ -185,7 +190,7 @@ void SpeechEncoder::encodeLoop(AudioInputStream::Index begin, AudioInputStream::
 
                         // There's still something to send
 
-                    } else if (writeResult <= 0) {
+                    } else {
                         switch (writeResult) {
                             case AudioInputStream::Writer::Error::WOULDBLOCK:
                                 // Should never happen.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright 2018-2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
 # You may not use this file except in compliance with the License.
@@ -28,6 +28,10 @@ CLONE_URL=${CLONE_URL:- 'https://github.com/xmos/avs-device-sdk.git'}
 PORT_AUDIO_FILE="pa_stable_v190600_20161030.tgz"
 PORT_AUDIO_DOWNLOAD_URL="http://www.portaudio.com/archives/$PORT_AUDIO_FILE"
 
+CURL_VER=7.67.0
+CURL_DOWNLOAD_URL="https://github.com/curl/curl/releases/download/curl-7_67_0/curl-${CURL_VER}.tar.gz"
+
+TEST_MODEL_DOWNLOAD="https://github.com/Sensory/alexa-rpi/blob/master/models/spot-alexa-rpi-31000.snsr"
 
 BUILD_TESTS=${BUILD_TESTS:-'true'}
 
@@ -53,15 +57,16 @@ UNIT_TEST_MODEL_PATH="$INSTALL_BASE/avs-device-sdk/KWD/inputs/SensoryModels/"
 UNIT_TEST_MODEL="$THIRD_PARTY_PATH/alexa-rpi/models/spot-alexa-rpi-31000.snsr"
 INPUT_CONFIG_FILE="$SOURCE_PATH/avs-device-sdk/Integration/AlexaClientSDKConfig.json"
 OUTPUT_CONFIG_FILE="$BUILD_PATH/Integration/AlexaClientSDKConfig.json"
-TEMP_CONFIG_FILE="$BUILD_PATH/Integration/tmp_AlexaClientSDKConfig.json"
+TEMP_CONFIG_FILE="$BUILD_PATH/Integration/temp_AlexaClientSDKConfig.json"
+TEMP_TEXT_FILE="$BUILD_PATH/Integration/temp_append_lines.txt"
 TEST_SCRIPT="$INSTALL_BASE/test.sh"
 LIB_SUFFIX="a"
 ANDROID_CONFIG_FILE=""
 PATH_FILES_DIR="$HOME/.config/"
 VOCALFUSION_3510_SALES_DEMO_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_sales_demo_path"
 VOCALFUSION_3510_AVS_SETUP_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_avs_setup_path"
-
 PI_HAT_CTRL_PATH="$THIRD_PARTY_PATH/pi_hat_ctrl"
+GPIO_KEY_WORD_DETECTOR_FLAG=""
 ALIASES="$HOME/.bash_aliases"
 
 # Default value for XMOS device
@@ -123,7 +128,8 @@ show_help() {
   echo  '  -a <file-name>        The file that contains Android installation configurations (e.g. androidConfig.txt)'
   echo  '  -d <description>      The description of the device.'
   echo  '  -m <manufacturer>     The device manufacturer name.'
-  echo  '  -x <xmos-device-type> XMOS device to setup: default xvf3510, possible value xvf3500'
+  echo  '  -x <xmos-device-type> XMOS device to setup: possible values are xvf3100, xvf3500, xvf3510, xvf3600-slave, xvf3600-master, or xvf3610, default is xvf3510'
+  echo  '  -g                    Flag to enable keyword detector on GPIO interrupt'
   echo  '  -h                    Display this help and exit'
 }
 
@@ -143,7 +149,7 @@ XMOS_TAG=$2
 
 shift 2
 
-OPTIONS=s:a:m:d:hx:
+OPTIONS=s:a:d:m:x:gh
 while getopts "$OPTIONS" opt ; do
     case $opt in
         s )
@@ -166,6 +172,9 @@ while getopts "$OPTIONS" opt ; do
         x )
             XMOS_DEVICE="$OPTARG"
             ;;
+        g )
+            GPIO_KEY_WORD_DETECTOR_FLAG="-g"
+            ;;
         h )
             show_help
             exit 1
@@ -183,7 +192,9 @@ PLATFORM=${PLATFORM:-$(get_platform)}
 
 if [ "$PLATFORM" == "Raspberry pi" ]
 then
-  source pi.sh
+  PI_CMD="pi.sh ${GPIO_KEY_WORD_DETECTOR_FLAG}"
+  echo "Running command ${PI_CMD}"
+  source $PI_CMD
 elif [ "$PLATFORM" == "Windows mingw64" ]
 then
   source mingw.sh
@@ -301,8 +312,15 @@ while true; do
   esac
 done
 
-SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
-XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
+if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
+then
+  SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
+  XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
+else
+  SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=OFF"
+  XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=OFF"
+fi
+
 if [ $XMOS_DEVICE = "xvf3510" ]
 then
   PI_HAT_FLAG="-DPI_HAT_CTRL=ON"
@@ -369,44 +387,52 @@ then
   cd $BUILD_PATH
 # remove -j2 option to allow building in Raspberry Pi3
   make SampleApp
-  make PreviewAlexaClient
+  # The PreviewAlexaClient is intended only for integrating the manufactory into the SDK
+  # It is not used bv the XMOS EVK and it currently doesn't build on RPi3
+  # make PreviewAlexaClient
 
 else
   cd $BUILD_PATH
 # remove -j2 option to allow building in Raspberry Pi3
   make SampleApp
-  make PreviewAlexaClient
+  # The PreviewAlexaClient is intended only for integrating the manufactory into the SDK
+  # It is not used bv the XMOS EVK and it currently doesn't build on RPi3
+  # make PreviewAlexaClient
 fi
 
 echo
 echo "==============> SAVING CONFIGURATION FILE =============="
 echo
 
-# Create configuration file with audioSink configuration at the beginning of the file
-cat << EOF > "$OUTPUT_CONFIG_FILE"
+GSTREAMER_CONFIG=$(cat <<-END
  {
     "gstreamerMediaPlayer":{
         "audioSink":"$GSTREAMER_AUDIO_SINK"
     },
-EOF
+END
+)
 
 cd $CURRENT_DIR
 bash genConfig.sh config.json $DEVICE_SERIAL_NUMBER $CONFIG_DB_PATH $SOURCE_PATH/avs-device-sdk $TEMP_CONFIG_FILE \
   -DSDK_CONFIG_MANUFACTURER_NAME="$DEVICE_MANUFACTURER_NAME" -DSDK_CONFIG_DEVICE_DESCRIPTION="$DEVICE_DESCRIPTION"
 
-# Delete first line from temp file to remove opening bracket
-sed -i -e "1d" $TEMP_CONFIG_FILE
-
-# Append temp file to configuration file
-cat $TEMP_CONFIG_FILE >> $OUTPUT_CONFIG_FILE
+# Replace the first opening bracket in the AlexaClientSDKConfig.json file with GSTREAMER_CONFIG variable.
+awk -v config="$GSTREAMER_CONFIG" 'NR==1,/{/{sub(/{/,config)}1' $TEMP_CONFIG_FILE > $OUTPUT_CONFIG_FILE
 
 # Enable the suggestedLatency parameter for portAudio
-sed -i -e '/displayCardsSupported/s/$/,/' $OUTPUT_CONFIG_FILE
-sed -i -e '/portAudio/s/\/\///' $OUTPUT_CONFIG_FILE
-# the sed command below will remove the // on two consecutive lines
-sed -i -e '/suggestedLatency/{N;s/\/\///g;}' $OUTPUT_CONFIG_FILE
+# Generate the lines to append
+CUSTOMTAB="    "
+append_lines_str="${CUSTOMTAB}${CUSTOMTAB}\"portAudio\":{\n${CUSTOMTAB}${CUSTOMTAB}${CUSTOMTAB}\"suggestedLatency\": 0.150\n${CUSTOMTAB}${CUSTOMTAB}}"
 
-# Delete temp file
+# Save string with multiple lines in a file, so that it can be appended in the json file
+echo -e "$append_lines_str" > $TEMP_TEXT_FILE
+
+# Replace and append text
+sed -i -e "/displayCardsSupported/s/$/,/" $OUTPUT_CONFIG_FILE
+sed -i -e "/displayCardsSupported/r ${TEMP_TEXT_FILE}" $OUTPUT_CONFIG_FILE
+
+# Delete temp files
+rm $TEMP_TEXT_FILE
 rm $TEMP_CONFIG_FILE
 
 echo

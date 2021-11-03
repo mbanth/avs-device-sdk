@@ -37,6 +37,11 @@
 #include <SampleApp/SampleApplicationReturnCodes.h>
 #include <SampleApp/UserInputManager.h>
 
+#ifdef AUTH_MANAGER
+#include <acsdkAuthorization/AuthorizationManager.h>
+#include <acsdkAuthorization/LWA/LWAAuthorizationAdapter.h>
+#endif
+
 #ifdef KWD
 #include <KWD/AbstractKeywordDetector.h>
 #endif
@@ -45,10 +50,6 @@
 #include <MediaPlayer/MediaPlayer.h>
 #elif defined(ANDROID_MEDIA_PLAYER)
 #include <AndroidSLESMediaPlayer/AndroidSLESMediaPlayer.h>
-#endif
-
-#ifdef BLUETOOTH_BLUEZ_PULSEAUDIO_OVERRIDE_ENDPOINTS
-#include <BlueZ/PulseAudioBluetoothInitializer.h>
 #endif
 
 namespace alexaClientSDK {
@@ -172,15 +173,6 @@ private:
     /// The vector of components requiring shutdown
     std::vector<std::shared_ptr<avsCommon::utils::RequiresShutdown>> m_shutdownRequiredList;
 
-    /// The @c MediaPlayer used by @c Alerts.
-    std::shared_ptr<avsCommon::utils::mediaPlayer::MediaPlayerInterface> m_alertsMediaPlayer;
-
-    /// The @c MediaPlayer used by @c Bluetooth.
-    std::shared_ptr<avsCommon::utils::mediaPlayer::MediaPlayerInterface> m_bluetoothMediaPlayer;
-
-    /// The @c MediaPlayer used by @c SystemSoundPlayer.
-    std::shared_ptr<avsCommon::utils::mediaPlayer::MediaPlayerInterface> m_systemSoundMediaPlayer;
-
 #ifdef ENABLE_COMMS_AUDIO_PROXY
     /// The @c MediaPlayer used by @c Comms.
     std::shared_ptr<avsCommon::utils::mediaPlayer::MediaPlayerInterface> m_commsMediaPlayer;
@@ -207,11 +199,6 @@ private:
     std::shared_ptr<applicationUtilities::androidUtilities::AndroidSLESEngine> m_openSlEngine;
 #endif
 
-#ifdef BLUETOOTH_BLUEZ_PULSEAUDIO_OVERRIDE_ENDPOINTS
-    /// Initializer object to reload PulseAudio Bluetooth modules.
-    std::shared_ptr<bluetoothImplementations::blueZ::PulseAudioBluetoothInitializer> m_pulseAudioInitializer;
-#endif
-
 #ifdef POWER_CONTROLLER
     /// The @c PeripheralEndpointPowerControllerHandler used by @c InteractionManager
     std::shared_ptr<sampleApp::PeripheralEndpointPowerControllerHandler> m_peripheralEndpointPowerHandler;
@@ -230,6 +217,14 @@ private:
 #ifdef MODE_CONTROLLER
     /// The @c PeripheralEndpointModeControllerHandler used by @c InteractionManager
     std::shared_ptr<sampleApp::PeripheralEndpointModeControllerHandler> m_peripheralEndpointModeHandler;
+#endif
+
+#ifdef AUTH_MANAGER
+    /// The @c AuthorizationManager instance that can be used to dynamically authorize with different methods.
+    std::shared_ptr<acsdkAuthorization::AuthorizationManager> m_authManager;
+
+    /// The adapter that supports authorizing with LWA based methods.
+    std::shared_ptr<acsdkAuthorization::lwa::LWAAuthorizationAdapter> m_lwaAdapter;
 #endif
 };
 

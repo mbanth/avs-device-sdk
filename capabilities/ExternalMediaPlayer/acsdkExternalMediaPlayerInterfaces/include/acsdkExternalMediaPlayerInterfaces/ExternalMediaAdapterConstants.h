@@ -21,6 +21,18 @@
 namespace alexaClientSDK {
 namespace acsdkExternalMediaPlayerInterfaces {
 
+/// The const char for the players key field in the context.
+static const char PLAYERS[] = "players";
+/// The const char for the playerInFocus key field in the context.
+static const char PLAYER_IN_FOCUS[] = "playerInFocus";
+/// The const char for agent key.
+static const char AGENT_KEY[] = "agent";
+/// The root key for configuration values for the ExternalMediaPlayer.
+static const std::string EMP_CONFIG_KEY("externalMediaPlayer");
+/// Key for the @c agent id string unter the @c EMP_CONFIG_KEY configuration
+/// node
+static const std::string EMP_AGENT_KEY("agentString");
+
 // The key values used in the context payload from External Media Player to AVS.
 const char PLAYER_ID[] = "playerId";
 const char ENDPOINT_ID[] = "endpointId";
@@ -45,6 +57,7 @@ const char FAVORITE[] = "favorite";
 const char PLAYBACK_SOURCE[] = "playbackSource";
 const char TYPE[] = "type";
 const char PLAYBACK_SOURCE_ID[] = "playbackSourceId";
+const char PLAYBACK_ID[] = "playbackId";
 const char TRACKNAME[] = "trackName";
 const char TRACK_ID[] = "trackId";
 const char TRACK_NUMBER[] = "trackNumber";

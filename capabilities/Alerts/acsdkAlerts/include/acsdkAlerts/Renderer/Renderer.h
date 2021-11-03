@@ -19,6 +19,8 @@
 #include "acsdkAlerts/Renderer/RendererInterface.h"
 #include "acsdkAlerts/Renderer/RendererObserverInterface.h"
 
+#include <acsdkApplicationAudioPipelineFactoryInterfaces/ApplicationAudioPipelineFactoryInterface.h>
+#include <acsdkShutdownManagerInterfaces/ShutdownNotifierInterface.h>
 #include <AVSCommon/SDKInterfaces/SpeakerManagerInterface.h>
 #include <AVSCommon/Utils/Threading/Executor.h>
 #include <AVSCommon/Utils/MediaPlayer/MediaPlayerInterface.h>
@@ -26,15 +28,21 @@
 #include <AVSCommon/Utils/MediaPlayer/SourceConfig.h>
 #include <AVSCommon/Utils/MediaType.h>
 #include <AVSCommon/Utils/Metrics/MetricRecorderInterface.h>
+#include <AVSCommon/Utils/RequiresShutdown.h>
 
 #include <chrono>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
 
 namespace alexaClientSDK {
 namespace acsdkAlerts {
+
+/// String to identify the alerts media player to render audio.
+static const constexpr char* ALERTS_MEDIA_PLAYER_NAME = "AlertsMediaPlayer";
+
 namespace renderer {
 
 /**
@@ -42,11 +50,29 @@ namespace renderer {
  */
 class Renderer
         : public RendererInterface
-        , public avsCommon::utils::mediaPlayer::MediaPlayerObserverInterface {
+        , public avsCommon::utils::mediaPlayer::MediaPlayerObserverInterface
+        , public avsCommon::utils::RequiresShutdown
+        , public std::enable_shared_from_this<Renderer> {
 public:
+    /**
+     * Factory method to create an Alerts Renderer.
+     *
+     * @param audioPipelineFactory The @c ApplicationAudioPlayerInterface instance to use to create the notifications
+     * media player for rendering audio.
+     * @param metricRecorder the metric recorder.
+     * @param shutdownNotifier the @c ShutdownNotifier to notify if a shutdown occurred.
+     * @return The @c Renderer object.
+     */
+    static std::shared_ptr<Renderer> createAlertRenderer(
+        const std::shared_ptr<acsdkApplicationAudioPipelineFactoryInterfaces::ApplicationAudioPipelineFactoryInterface>&
+            audioPipelineFactory,
+        const std::shared_ptr<avsCommon::utils::metrics::MetricRecorderInterface>& metricRecorder,
+        const std::shared_ptr<acsdkShutdownManagerInterfaces::ShutdownNotifierInterface>& shutdownNotifier);
+
     /**
      * Creates a @c Renderer.
      *
+     * @deprecated Use createAlertRenderer.
      * @param mediaPlayer the @c MediaPlayerInterface that the @c Renderer object will interact with.
      * @param metricRecorder the metric recorder.
      * @return The @c Renderer object.
@@ -263,6 +289,11 @@ private:
      */
     void handlePlaybackError(const std::string& error);
 
+    /// @}
+
+    /// @name RequiresShutdown methods
+    /// @{
+    void doShutdown() override;
     /// @}
 
     /**

@@ -13,16 +13,17 @@
  * permissions and limitations under the License.
  */
 
-#ifndef ACSDKALERTS_STORAGE_SQLITEALERTSTORAGE_H_
-#define ACSDKALERTS_STORAGE_SQLITEALERTSTORAGE_H_
-
-#include "acsdkAlerts/Storage/AlertStorageInterface.h"
+#ifndef ALEXA_CLIENT_SDK_ACSDKALERTS_INCLUDE_ACSDKALERTS_STORAGE_SQLITEALERTSTORAGE_H_
+#define ALEXA_CLIENT_SDK_ACSDKALERTS_INCLUDE_ACSDKALERTS_STORAGE_SQLITEALERTSTORAGE_H_
 
 #include <set>
 
 #include <AVSCommon/SDKInterfaces/Audio/AlertsAudioFactoryInterface.h>
+#include <AVSCommon/SDKInterfaces/Audio/AudioFactoryInterface.h>
 #include <AVSCommon/Utils/Configuration/ConfigurationNode.h>
 #include <SQLiteStorage/SQLiteDatabase.h>
+
+#include "acsdkAlerts/Storage/AlertStorageInterface.h"
 
 namespace alexaClientSDK {
 namespace acsdkAlerts {
@@ -39,6 +40,18 @@ public:
     /**
      * Factory method for creating a storage object for Alerts based on an SQLite database.
      *
+     * @param configurationRoot The global config object.
+     * @param audioFactory A factory that can produce default alert sounds.
+     * @return Pointer to the SQLiteAlertStorage object, nullptr if there's an error creating it.
+     */
+    static std::shared_ptr<AlertStorageInterface> createAlertStorageInterface(
+        const std::shared_ptr<avsCommon::utils::configuration::ConfigurationNode>& configurationRoot,
+        const std::shared_ptr<avsCommon::sdkInterfaces::audio::AudioFactoryInterface>& audioFactory);
+
+    /**
+     * Factory method for creating a storage object for Alerts based on an SQLite database.
+     *
+     * @deprecated
      * @param configurationRoot The global config object.
      * @param alertsAudioFactory A factory that can produce default alert sounds.
      * @return Pointer to the SQLiteAlertStorage object, nullptr if there's an error creating it.
@@ -60,7 +73,8 @@ public:
 
     bool store(std::shared_ptr<Alert> alert) override;
 
-    bool storeOfflineAlert(const std::string& token, const std::string& scheduledTime) override;
+    bool storeOfflineAlert(const std::string& token, const std::string& scheduledTime, const std::string& eventTime)
+        override;
 
     bool load(
         std::vector<std::shared_ptr<Alert>>* alertContainer,
@@ -122,6 +136,46 @@ private:
         std::shared_ptr<settings::DeviceSettingsManager> settingsManager);
 
     /**
+     * A utility function to store offline alerts for different versions of the offline alerts table. Currently V1 and
+     * V2 are supported.
+     *
+     * @param dbVersion The version of the offline alerts table.
+     * @param token The AVS token which uniquely identifies an alert.
+     * @param scheduledTime The scheduled time of the alert.
+     * @param eventTime The time when alert is stopped.
+     * @return Whether the offline alert was stored successfully.
+     */
+    bool storeOfflineAlertHelper(
+        const int dbVersion,
+        const std::string& token,
+        const std::string& scheduledTime,
+        const std::string& eventTime);
+
+    /**
+     * A utility function to load offline alerts from different versions of the offline alerts table. Currently V1 and
+     * V2 are supported.
+     *
+     * @param dbVersion The version of the offline alerts table.
+     * @param[out] alertContainer The container where alerts should be stored.
+     * @param allocator The rapidjson allocator.
+     * @return Whether the offline alert was loaded successfully.
+     */
+    bool loadOfflineAlertsHelper(
+        const int dbVersion,
+        rapidjson::Value* alertContainer,
+        rapidjson::Document::AllocatorType& allocator);
+
+    /**
+     * A utility function to erase offline alerts from different versions of the offline alerts table. Currently V1 and
+     * V2 are supported.
+     *
+     * @param dbVersion The version of the offline alerts table.
+     * @param token The AVS token which uniquely identifies an alert.
+     * @return Whether the offline alert was erased successfully.
+     */
+    bool eraseOfflineHelper(const int dbVersion, const std::string& token);
+
+    /**
      * Query whether an alert is currently stored in the alerts table with the given token.
      *
      * @param token The AVS token which uniquely identifies an alert.
@@ -130,12 +184,28 @@ private:
     bool alertExists(const std::string& token);
 
     /**
+     * Check whether offline alerts table includes column event_time_iso_8601.
+     *
+     * @return True if event_time_iso_8601 is not included, false otherwise.
+     */
+    bool isOfflineTableV1Legacy();
+
+    /**
      * Query whether an alert is currently stored in the offline alerts table with the given token.
      *
+     * @param dbVersion The version of the offline alerts table.
      * @param token The AVS token which uniquely identifies an alert.
      * @return @c true If the alert is stored in the offline alerts database, @c false otherwise.
      */
-    bool offlineAlertExists(const std::string& token);
+    bool offlineAlertExists(const int dbVersion, const std::string& token);
+
+    /**
+     * A utility function to migrate an existing offline alerts v1 table to v2.
+     *
+     * @return Whether migrate offline alerts data from v1 to v2 succeeds. If v2 table already exists or if there is no
+     * existing v1 table, return true.
+     */
+    bool migrateOfflineAlertsDbFromV1ToV2();
 
     /// A member that stores a factory that produces audio streams for alerts.
     std::shared_ptr<avsCommon::sdkInterfaces::audio::AlertsAudioFactoryInterface> m_alertsAudioFactory;
@@ -148,4 +218,4 @@ private:
 }  // namespace acsdkAlerts
 }  // namespace alexaClientSDK
 
-#endif  // ACSDKALERTS_STORAGE_SQLITEALERTSTORAGE_H_
+#endif  // ALEXA_CLIENT_SDK_ACSDKALERTS_INCLUDE_ACSDKALERTS_STORAGE_SQLITEALERTSTORAGE_H_

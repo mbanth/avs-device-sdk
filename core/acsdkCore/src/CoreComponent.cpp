@@ -14,13 +14,15 @@
  */
 
 #include <acsdkManufactory/ComponentAccumulator.h>
-#include <acsdkManufactory/ConstructorAdapter.h>
 #include <acsdkPostConnectOperationProviderRegistrar/PostConnectOperationProviderRegistrar.h>
 #include <acsdkShared/SharedComponent.h>
+#include <acsdkSystemClockMonitor/SystemClockNotifier.h>
+#include <acsdkSystemClockMonitor/SystemClockMonitor.h>
+#include <ADSL/ADSLComponent.h>
 #include <AFML/FocusManagementComponent.h>
 #include <AVSCommon/AVS/ExceptionEncounteredSender.h>
+#include <AVSCommon/AVS/DialogUXStateAggregator.h>
 #include <AVSCommon/AVS/Attachment/AttachmentManager.h>
-#include <AVSCommon/SDKInterfaces/AuthDelegateInterface.h>
 #include <AVSGatewayManager/AVSGatewayManager.h>
 #include <AVSGatewayManager/Storage/AVSGatewayManagerStorage.h>
 #include <Alexa/AlexaEventProcessedNotifier.h>
@@ -31,6 +33,7 @@
 #include <ContextManager/ContextManager.h>
 #include <Endpoints/DefaultEndpointBuilder.h>
 #include <InterruptModel/InterruptModel.h>
+#include <RegistrationManager/RegistrationManagerComponent.h>
 #include <SQLiteStorage/SQLiteMiscStorage.h>
 #include <SynchronizeStateSender/SynchronizeStateSenderFactory.h>
 
@@ -47,6 +50,9 @@ using namespace acsdkAlexaEventProcessedNotifierInterfaces;
 using namespace acsdkManufactory;
 using namespace acsdkPostConnectOperationProviderRegistrar;
 using namespace acsdkPostConnectOperationProviderRegistrarInterfaces;
+using namespace acsdkSystemClockMonitor;
+using namespace acsdkSystemClockMonitorInterfaces;
+using namespace avsCommon::avs;
 using namespace avsCommon::avs::attachment;
 using namespace avsCommon::sdkInterfaces;
 using namespace avsCommon::sdkInterfaces::endpoints;
@@ -74,9 +80,9 @@ static const std::string TAG("CoreComponent");
 CoreComponent getComponent() {
     return ComponentAccumulator<>()
         .addComponent(acsdkShared::getComponent())
+        .addComponent(adsl::getComponent())
         .addComponent(afml::getComponent())
-        .addRetainedFactory(
-            ConstructorAdapter<AlexaEventProcessedNotifierInterface, AlexaEventProcessedNotifier>::get())
+        .addRetainedFactory(AlexaEventProcessedNotifier::createAlexaEventProcessedNotifierInterface)
         .addRetainedFactory(AlexaInterfaceMessageSender::createAlexaInterfaceMessageSender)
         .addRetainedFactory(AlexaInterfaceMessageSender::createAlexaInterfaceMessageSenderInternalInterface)
         .addRequiredFactory(AlexaInterfaceCapabilityAgent::createDefaultAlexaInterfaceCapabilityAgent)
@@ -85,16 +91,18 @@ CoreComponent getComponent() {
         .addUniqueFactory(AVSGatewayManagerStorage::createAVSGatewayManagerStorageInterface)
         .addRetainedFactory(avsCommon::avs::ExceptionEncounteredSender::createExceptionEncounteredSenderInterface)
         .addRequiredFactory(CapabilitiesDelegate::createCapabilitiesDelegateInterface)
-        .addRetainedFactory(ConstructorAdapter<CustomerDataManager>::get())
         .addRetainedFactory(DefaultEndpointBuilder::createDefaultEndpointBuilderInterface)
         .addRetainedFactory(DefaultEndpointBuilder::createDefaultEndpointCapabilitiesRegistrarInterface)
         .addRetainedFactory(ContextManager::createContextManagerInterface)
         .addRetainedFactory(DeviceInfo::createFromConfiguration)
         .addRetainedFactory(InterruptModel::createInterruptModel)
         .addRetainedFactory(PostConnectOperationProviderRegistrar::createPostConnectOperationProviderRegistrarInterface)
+        .addComponent(registrationManager::getComponent())
         .addRetainedFactory(SQLiteMiscStorage::createMiscStorageInterface)
         .addUniqueFactory(SQLiteCapabilitiesDelegateStorage::createCapabilitiesDelegateStorageInterface)
-        .addRequiredFactory(SynchronizeStateSenderFactory::createPostConnectOperationProviderInterface);
+        .addRequiredFactory(SynchronizeStateSenderFactory::createPostConnectOperationProviderInterface)
+        .addRetainedFactory(SystemClockMonitor::createSystemClockMonitorInterface)
+        .addRetainedFactory(SystemClockNotifier::createSystemClockNotifierInterface);
 }
 
 }  // namespace acsdkCore

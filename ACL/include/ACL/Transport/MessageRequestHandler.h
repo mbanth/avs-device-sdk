@@ -21,6 +21,7 @@
 #include <AVSCommon/AVS/Attachment/AttachmentManagerInterface.h>
 #include <AVSCommon/AVS/MessageRequest.h>
 #include <AVSCommon/SDKInterfaces/EventTracerInterface.h>
+#include <AVSCommon/SDKInterfaces/MessageRequestObserverInterface.h>
 #include <AVSCommon/Utils/Power/PowerResource.h>
 #include <AVSCommon/Utils/HTTP2/HTTP2MimeRequestSourceInterface.h>
 #include <AVSCommon/Utils/Metrics/MetricRecorderInterface.h>
@@ -110,6 +111,17 @@ private:
      */
     void reportMessageRequestFinished();
 
+    /**
+     * Record a stream metric once when a specific threshold of bytes have been read from the stream.
+     * The stream metric name and threshold will be specified in the MessageRequest.
+     */
+    void recordStreamMetric(int bytes);
+
+    /**
+     * Record the metric that specifics the start of sending the Message Event to the cloud.
+     */
+    void recordStartOfEventMetric();
+
     /// The MessageRequest that this handler is servicing.
     std::shared_ptr<avsCommon::avs::MessageRequest> m_messageRequest;
 
@@ -142,6 +154,15 @@ private:
 
     /// The reference to @c PowerResource to prevent device from going into LPM.
     std::shared_ptr<avsCommon::utils::power::PowerResource> m_powerResource;
+
+    /// Status to be reported back to the @c MessageRequest.
+    avsCommon::sdkInterfaces::MessageRequestObserverInterface::Status m_resultStatus;
+
+    /// The number of bytes that have been read from the stream.
+    unsigned int m_streamBytesRead;
+
+    /// If the stream metric has already been recorded.
+    bool m_recordedStreamMetric;
 };
 
 }  // namespace acl

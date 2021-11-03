@@ -26,6 +26,7 @@
 #include <gtest/gtest.h>
 
 #include <ACL/AVSConnectionManager.h>
+#include <acsdkManufactory/Annotated.h>
 #include <ADSL/DirectiveSequencer.h>
 #include <ADSL/MessageInterpreter.h>
 #include <AFML/Channel.h>
@@ -36,10 +37,12 @@
 #include <Audio/SystemSoundAudioFactory.h>
 #include <AVSCommon/AVS/Attachment/InProcessAttachmentWriter.h>
 #include <AVSCommon/AVS/BlockingPolicy.h>
+#include <AVSCommon/AVS/CapabilityChangeNotifier.h>
 #include <AVSCommon/SDKInterfaces/ChannelObserverInterface.h>
 #include <AVSCommon/SDKInterfaces/DirectiveHandlerInterface.h>
 #include <AVSCommon/SDKInterfaces/KeyWordObserverInterface.h>
 #include <AVSCommon/SDKInterfaces/MockLocaleAssetsManager.h>
+#include <AVSCommon/SDKInterfaces/Endpoints/MockEndpointCapabilitiesRegistrar.h>
 #include <AVSCommon/Utils/JSON/JSONUtils.h>
 #include <AVSCommon/Utils/LibcurlUtils/HTTPContentFetcherFactory.h>
 #include <AVSCommon/Utils/Logger/LogEntry.h>
@@ -50,11 +53,12 @@
 #else
 #include "Integration/TestMediaPlayer.h"
 #endif
+#include <acsdkInteractionModel/InteractionModelCapabilityAgent.h>
+#include <acsdkInteractionModel/InteractionModelNotifier.h>
 #include <Settings/MockSetting.h>
 #include <Settings/SpeechConfirmationSettingType.h>
 #include <Settings/WakeWordConfirmationSettingType.h>
 #include <SystemSoundPlayer/SystemSoundPlayer.h>
-#include <InteractionModel/InteractionModelCapabilityAgent.h>
 
 #include "Integration/ACLTestContext.h"
 #include "Integration/ObservableMessageRequest.h"
@@ -64,10 +68,7 @@
 #include "Integration/TestExceptionEncounteredSender.h"
 #include "System/UserInactivityMonitor.h"
 
-// If the tests are created with both Kittai and Sensory, Kittai is chosen.
-#ifdef KWD_KITTAI
-#include "KittAi/KittAiKeyWordDetector.h"
-#elif KWD_SENSORY
+#ifdef KWD_SENSORY
 #include "Sensory/SensoryKeywordDetector.h"
 #endif
 
@@ -83,9 +84,12 @@ using namespace alexaClientSDK::avsCommon::utils;
 using namespace alexaClientSDK::avsCommon::avs::attachment;
 using namespace alexaClientSDK::avsCommon::sdkInterfaces;
 using namespace capabilityAgents::aip;
-using namespace capabilityAgents::interactionModel;
+using namespace acsdkInteractionModel;
 using namespace capabilityAgents::system;
 using namespace sdkInterfaces;
+using namespace sdkInterfaces::endpoints;
+using namespace sdkInterfaces::endpoints::test;
+using namespace sdkInterfaces::test;
 using namespace avsCommon::utils::sds;
 using namespace avsCommon::utils::json;
 using namespace avsCommon::utils::metrics::test;
@@ -93,6 +97,7 @@ using namespace afml;
 using namespace contextManager;
 using namespace settings;
 using namespace settings::test;
+using namespace testing;
 
 // This is a 16 bit 16 kHz little endian linear PCM audio file of "Tell me a Joke" to be recognized.
 static const std::string JOKE_AUDIO_FILE = "/recognize_joke_test.wav";
@@ -163,14 +168,7 @@ static const std::chrono::seconds NO_TIMEOUT_DURATION(0);
 static const int RIFF_HEADER_SIZE = 44;
 /// The compatible sample rate for OPUS 32KHz.
 static const unsigned int COMPATIBLE_SAMPLE_RATE_OPUS_32 = 32000;
-#ifdef KWD_KITTAI
-/// The name of the resource file required for Kitt.ai.
-static const std::string RESOURCE_FILE = "/KittAiModels/common.res";
-/// The name of the Alexa model file for Kitt.ai.
-static const std::string MODEL_FILE = "/KittAiModels/alexa.umdl";
-/// The keyword associated with alexa.umdl.
-static const std::string MODEL_KEYWORD = "ALEXA";
-#elif KWD_SENSORY
+#ifdef KWD_SENSORY
 /// The name of the resource file required for Sensory
 static const std::string RESOURCE_FILE = "/SensoryModels/spot-alexa-rpi-31000.snsr";
 #endif
@@ -191,23 +189,19 @@ static const std::string JSON_MESSAGE_DIALOG_REQUEST_ID_KEY = "dialogRequestId";
 static const std::string JSON_MESSAGE_PAYLOAD_KEY = "payload";
 
 /**
- * The sensitivity to the keyword in the model. Set to 0.6 as this is what was described as optimal on the Kitt.ai
- * Github page.
+ * The sensitivity to the keyword in the model.
  */
-#ifdef KWD_KITTAI
-static const double KITTAI_SENSITIVITY = 0.6;
-#endif
-/// The compatible encoding for Kitt.ai.
+/// The compatible encoding.
 static const avsCommon::utils::AudioFormat::Encoding COMPATIBLE_ENCODING =
     avsCommon::utils::AudioFormat::Encoding::LPCM;
-/// The compatible endianness for Kitt.ai.
+/// The compatible endianness.
 static const avsCommon::utils::AudioFormat::Endianness COMPATIBLE_ENDIANNESS =
     avsCommon::utils::AudioFormat::Endianness::LITTLE;
-/// The compatible sample rate for Kitt.ai.
+/// The compatible sample rate.
 static const unsigned int COMPATIBLE_SAMPLE_RATE = 16000;
-/// The compatible bits per sample for Kitt.ai.
+/// The compatible bits per sample.
 static const unsigned int COMPATIBLE_SAMPLE_SIZE_IN_BITS = 16;
-/// The compatible number of channels for Kitt.ai
+/// The compatible number of channels
 static const unsigned int COMPATIBLE_NUM_CHANNELS = 1;
 
 /// String to identify log entries originating from this file.
@@ -243,12 +237,12 @@ public:
     }
 };
 
-#if defined(KWD_KITTAI) || defined(KWD_SENSORY)
+#if defined(KWD_SENSORY)
 class wakeWordTrigger : public KeyWordObserverInterface {
 public:
-    wakeWordTrigger(AudioFormat compatibleAudioFormat, std::shared_ptr<AudioInputProcessor> aip) {
-        m_compatibleAudioFormat = compatibleAudioFormat;
-        m_aip = aip;
+    wakeWordTrigger(AudioFormat compatibleAudioFormat, std::shared_ptr<AudioInputProcessor> aip) :
+            m_compatibleAudioFormat(compatibleAudioFormat),
+            m_aip(aip) {
     }
     void onKeyWordDetected(
         std::shared_ptr<AudioInputStream> stream,
@@ -280,9 +274,7 @@ public:
             }
             auto now = std::chrono::steady_clock::now();
 // Else we don't have any indices to pass along; AIP will begin recording ASAP.
-#ifdef KWD_KITTAI
-            m_aip->recognize(audioProvider, Initiator::TAP, now, aipBegin, aipEnd, keyword);
-#elif KWD_SENSORY
+#ifdef KWD_SENSORY
             m_aip->recognize(audioProvider, Initiator::WAKEWORD, now, aipBegin, aipEnd, keyword);
 #endif
         }
@@ -401,7 +393,16 @@ protected:
         ASSERT_TRUE(m_context);
 
         m_exceptionEncounteredSender = std::make_shared<TestExceptionEncounteredSender>();
-        m_metricRecorder = std::make_shared<testing::NiceMock<MockMetricRecorder>>();
+        m_metricRecorder = std::make_shared<NiceMock<MockMetricRecorder>>();
+
+        auto registrar = std::make_shared<NiceMock<MockEndpointCapabilitiesRegistrar>>();
+        m_endpointCapabilitiesRegistrar =
+            acsdkManufactory::Annotated<DefaultEndpointAnnotation, EndpointCapabilitiesRegistrarInterface>(registrar);
+        EXPECT_CALL(
+            *(registrar.get()),
+            withCapability(A<const std::shared_ptr<avsCommon::sdkInterfaces::CapabilityConfigurationInterface>&>(), _))
+            .WillRepeatedly(ReturnRef(
+                *std::make_shared<avsCommon::sdkInterfaces::endpoints::test::MockEndpointCapabilitiesRegistrar>()));
 
         DirectiveHandlerConfiguration handlerConfig;
         handlerConfig[SET_MUTE_PAIR] = BlockingPolicy(BlockingPolicy::MEDIUM_AUDIO, false);
@@ -486,11 +487,15 @@ protected:
             systemSoundMediaPlayer,
             std::make_shared<applicationUtilities::resources::audio::SystemSoundAudioFactory>());
 
-        m_interactionModelCA =
-            InteractionModelCapabilityAgent::create(m_directiveSequencer, m_exceptionEncounteredSender);
+        m_interactionModelNotifier = InteractionModelNotifier::createInteractionModelNotifierInterface();
+        m_interactionModelCA = InteractionModelCapabilityAgent::create(
+            m_directiveSequencer,
+            m_exceptionEncounteredSender,
+            m_interactionModelNotifier,
+            m_endpointCapabilitiesRegistrar);
         ASSERT_NE(nullptr, m_interactionModelCA);
         ASSERT_TRUE(m_directiveSequencer->addDirectiveHandler(m_interactionModelCA));
-        m_interactionModelCA->addObserver(m_dialogUXStateAggregator);
+        m_interactionModelNotifier->addObserver(m_dialogUXStateAggregator);
 
         m_AudioInputProcessor = AudioInputProcessor::create(
             m_directiveSequencer,
@@ -504,6 +509,7 @@ protected:
             std::make_shared<::testing::NiceMock<sdkInterfaces::test::MockLocaleAssetsManager>>(),
             m_wakeWordConfirmation,
             m_speechConfirmation,
+            std::make_shared<avsCommon::avs::CapabilityChangeNotifier>(),
             nullptr,
             nullptr,
             AudioProvider::null(),
@@ -522,24 +528,10 @@ protected:
 
         ASSERT_TRUE(m_directiveSequencer->addDirectiveHandler(m_AudioInputProcessor));
 
-#if defined(KWD_KITTAI) || defined(KWD_SENSORY)
+#if defined(KWD_SENSORY)
         m_wakeWordTrigger = std::make_shared<wakeWordTrigger>(m_compatibleAudioFormat, m_AudioInputProcessor);
 
-#ifdef KWD_KITTAI
-        kwd::KittAiKeyWordDetector::KittAiConfiguration config;
-        config = {g_inputPath + MODEL_FILE, MODEL_KEYWORD, KITTAI_SENSITIVITY};
-        m_detector = kwd::KittAiKeyWordDetector::create(
-            m_AudioBuffer,
-            m_compatibleAudioFormat,
-            {m_wakeWordTrigger},
-            // Not using an empty initializer list here to account for a GCC 4.9.2 regression
-            std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>>(),
-            g_inputPath + RESOURCE_FILE,
-            {config},
-            2.0,
-            false);
-        ASSERT_TRUE(m_detector);
-#elif KWD_SENSORY
+#ifdef KWD_SENSORY
         m_detector = kwd::SensoryKeywordDetector::create(
             m_AudioBuffer,
             m_compatibleAudioFormat,
@@ -628,7 +620,10 @@ protected:
     std::shared_ptr<TestClient> m_testClient;
     std::shared_ptr<UserInactivityMonitor> m_userInactivityMonitor;
     std::shared_ptr<AudioInputProcessor> m_AudioInputProcessor;
+    std::shared_ptr<acsdkInteractionModelInterfaces::InteractionModelNotifierInterface> m_interactionModelNotifier;
     std::shared_ptr<InteractionModelCapabilityAgent> m_interactionModelCA;
+    acsdkManufactory::Annotated<DefaultEndpointAnnotation, EndpointCapabilitiesRegistrarInterface>
+        m_endpointCapabilitiesRegistrar;
     std::shared_ptr<AipStateObserver> m_StateObserver;
     std::shared_ptr<tapToTalkButton> m_tapToTalkButton;
     std::shared_ptr<holdToTalkButton> m_holdToTalkButton;
@@ -641,13 +636,9 @@ protected:
     std::shared_ptr<applicationUtilities::systemSoundPlayer::SystemSoundPlayer> m_systemSoundPlayer;
     std::shared_ptr<settings::test::MockSetting<settings::WakeWordConfirmationSettingType>> m_wakeWordConfirmation;
     std::shared_ptr<settings::test::MockSetting<settings::SpeechConfirmationSettingType>> m_speechConfirmation;
-#if defined(KWD_KITTAI) || defined(KWD_SENSORY)
+#if defined(KWD_SENSORY)
     std::shared_ptr<wakeWordTrigger> m_wakeWordTrigger;
-#ifdef KWD_KITTAI
-    std::unique_ptr<kwd::KittAiKeyWordDetector> m_detector;
-#elif KWD_SENSORY
     std::unique_ptr<kwd::SensoryKeywordDetector> m_detector;
-#endif
 #endif
 };
 
@@ -702,7 +693,7 @@ std::vector<T> readAudioFromFile(const std::string& fileName, const int& headerP
  * AudioInputProcessor is then observed to send a Recognize event to AVS which responds with a SetMute and Speak
  * directive.
  */
-#if defined(KWD_KITTAI) || defined(KWD_SENSORY)
+#if defined(KWD_SENSORY)
 TEST_F(AudioInputProcessorTest, test_wakeWordJoke) {
     // Put audio onto the SDS saying "Alexa, Tell me a joke".
     bool error;
@@ -753,7 +744,7 @@ TEST_F(AudioInputProcessorTest, test_wakeWordJoke) {
  * To do this, audio of "Alexa, ........." is fed into a stream that is being read by a wake word engine. The
  * AudioInputProcessor is then observed to send a Recognize event to AVS which responds with no directives.
  */
-#if defined(KWD_KITTAI) || defined(KWD_SENSORY)
+#if defined(KWD_SENSORY)
 TEST_F(AudioInputProcessorTest, test_wakeWordSilence) {
     // Put audio onto the SDS saying "Alexa ......".
     bool error;
@@ -798,7 +789,7 @@ TEST_F(AudioInputProcessorTest, test_wakeWordSilence) {
  * AudioInputProcessor is then observed to send a Recognize event to AVS which responds with a SetMute, Speak,
  * and ExpectSpeech directive. Audio of "Lions" is then fed into the stream and another recognize event is sent.
  */
-#if defined(KWD_KITTAI) || defined(KWD_SENSORY)
+#if defined(KWD_SENSORY)
 TEST_F(AudioInputProcessorTest, test_wakeWordMultiturn) {
     // Put audio onto the SDS saying "Alexa, wikipedia".
     bool error;
@@ -894,7 +885,7 @@ TEST_F(AudioInputProcessorTest, test_wakeWordMultiturn) {
  * and ExpectSpeech directive. Audio of "...." is then fed into the stream and another recognize event is sent
  * but no directives are given in response.
  */
-#if defined(KWD_KITTAI) || defined(KWD_SENSORY)
+#if defined(KWD_SENSORY)
 TEST_F(AudioInputProcessorTest, test_wakeWordMultiturnWithoutUserResponse) {
     // Put audio onto the SDS saying "Alexa, wikipedia".
     bool error;
@@ -1167,7 +1158,7 @@ TEST_F(AudioInputProcessorTest, test_tapToTalkNoAudio) {
  * AudioInputProcessor. The AudioInputProcessor is then observed to send only one Recognize event to AVS which responds
  * with a SetMute and Speak directive.
  */
-#if defined(KWD_KITTAI) || defined(KWD_SENSORY)
+#if defined(KWD_SENSORY)
 TEST_F(AudioInputProcessorTest, test_tapToTalkWithWakeWordConflict) {
     // Signal to the AIP to start recognizing.
     ASSERT_TRUE(m_tapToTalkButton->startRecognizing(m_AudioInputProcessor, m_TapToTalkAudioProvider));
