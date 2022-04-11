@@ -19,6 +19,8 @@
 #include <Sensory/SensoryKeywordDetector.h>
 #elif KWD_GPIO
 #include <GPIO/GPIOKeywordDetector.h>
+#elif KWD_HID
+#include <HID/HIDKeywordDetector.h>
 #endif
 
 using namespace alexaClientSDK;
@@ -42,6 +44,12 @@ std::unique_ptr<kwd::AbstractKeywordDetector> KeywordDetectorProvider::create(
 
 #elif defined(KWD_GPIO)
     return kwd::GPIOKeywordDetector::create(
+        stream,
+        audioFormat,
+        keyWordObservers,
+        keyWordDetectorStateObservers);
+#elif defined(KWD_HID)
+    return kwd::HIDKeywordDetector::create(
         stream,
         audioFormat,
         keyWordObservers,
