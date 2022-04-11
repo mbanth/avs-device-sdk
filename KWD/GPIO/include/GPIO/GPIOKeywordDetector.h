@@ -59,7 +59,7 @@ public:
     static std::unique_ptr<GPIOKeywordDetector> create(
         std::shared_ptr<AudioInputStream> stream,
         avsCommon::utils::AudioFormat audioFormat,
-        std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
+        std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> kexyWordObservers,
         std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
@@ -99,6 +99,8 @@ private:
 
     /// The main function that reads data and feeds it into the engine.
     void detectionLoop();
+    /// The main function that reads data and feeds it into the engine.
+    void readAudioLoop();
 
     /// Indicates whether the internal main loop should keep running.
     std::atomic<bool> m_isShuttingDown;
@@ -115,7 +117,13 @@ private:
      */
     avsCommon::avs::AudioInputStream::Index m_beginIndexOfStreamReader;
 
-    /// Internal thread that monitors GPIO.
+    /// The file descriptor to access I2C port
+    int m_fileDescriptor;
+
+    /// Internal thread that read audio samples
+    std::thread m_readAudioThread;
+
+    /// Internal thread that monitors GPIO pin.
     std::thread m_detectionThread;
 
     /**
