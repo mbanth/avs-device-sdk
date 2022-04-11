@@ -67,6 +67,7 @@ VOCALFUSION_3510_SALES_DEMO_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_sales_de
 VOCALFUSION_3510_AVS_SETUP_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_avs_setup_path"
 PI_HAT_CTRL_PATH="$THIRD_PARTY_PATH/pi_hat_ctrl"
 GPIO_KEY_WORD_DETECTOR_FLAG=""
+HID_KEY_WORD_DETECTOR_FLAG=""
 ALIASES="$HOME/.bash_aliases"
 
 # Default value for XMOS device
@@ -149,7 +150,7 @@ XMOS_TAG=$2
 
 shift 2
 
-OPTIONS=s:a:d:m:x:gh
+OPTIONS=s:a:d:m:x:gkh
 while getopts "$OPTIONS" opt ; do
     case $opt in
         s )
@@ -175,6 +176,9 @@ while getopts "$OPTIONS" opt ; do
         g )
             GPIO_KEY_WORD_DETECTOR_FLAG="-g"
             ;;
+        k )
+            HID_KEY_WORD_DETECTOR_FLAG="-k"
+            ;;
         h )
             show_help
             exit 1
@@ -192,7 +196,7 @@ PLATFORM=${PLATFORM:-$(get_platform)}
 
 if [ "$PLATFORM" == "Raspberry pi" ]
 then
-  PI_CMD="pi.sh ${GPIO_KEY_WORD_DETECTOR_FLAG}"
+  PI_CMD="pi.sh ${GPIO_KEY_WORD_DETECTOR_FLAG} ${HID_KEY_WORD_DETECTOR_FLAG}"
   echo "Running command ${PI_CMD}"
   source $PI_CMD
 elif [ "$PLATFORM" == "Windows mingw64" ]
@@ -312,7 +316,7 @@ while true; do
   esac
 done
 
-if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
+if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ] && [ -z $HID_KEY_WORD_DETECTOR_FLAG ]
 then
   SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
   XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
