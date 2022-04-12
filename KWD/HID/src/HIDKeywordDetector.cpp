@@ -39,8 +39,8 @@ static const std::string TAG("HIDKeywordDetector");
  */
 #define LX(event) alexaClientSDK::avsCommon::utils::logger::LogEntry(TAG, event)
 
-/// Wakeword string
-static const std::string WAKEWORD_STRING = "alexa";
+/// Keyword string
+static const std::string KEYWORD_STRING = "alexa";
 
 /// The number of hertz per kilohertz.
 static const size_t HERTZ_PER_KILOHERTZ = 1000;
@@ -48,20 +48,20 @@ static const size_t HERTZ_PER_KILOHERTZ = 1000;
 /// The timeout to use for read calls to the SharedDataStream.
 const std::chrono::milliseconds TIMEOUT_FOR_READ_CALLS = std::chrono::milliseconds(1000);
 
-/// The HID WW compatible AVS sample rate of 16 kHz.
+/// The HID KW compatible AVS sample rate of 16 kHz.
 static const unsigned int HID_COMPATIBLE_SAMPLE_RATE = 16000;
 
-/// The HID WW compatible bits per sample of 16.
+/// The HID KW compatible bits per sample of 16.
 static const unsigned int HID_COMPATIBLE_SAMPLE_SIZE_IN_BITS = 16;
 
-/// The HID WW compatible number of channels, which is 1.
+/// The HID KW compatible number of channels, which is 1.
 static const unsigned int HID_COMPATIBLE_NUM_CHANNELS = 1;
 
-/// The HID WW compatible audio encoding of LPCM.
+/// The HID KW compatible audio encoding of LPCM.
 static const avsCommon::utils::AudioFormat::Encoding HID_COMPATIBLE_ENCODING =
     avsCommon::utils::AudioFormat::Encoding::LPCM;
 
-/// The HID WW compatible endianness which is little endian.
+/// The HID KW compatible endianness which is little endian.
 static const avsCommon::utils::AudioFormat::Endianness HID_COMPATIBLE_ENDIANNESS =
     avsCommon::utils::AudioFormat::Endianness::LITTLE;
 
@@ -119,6 +119,11 @@ uint8_t openUSBDevice(libevdev** evdev, libusb_device_handle** devh) {
     libusb_device **devs = NULL;
     libusb_device *dev = NULL;
 
+    ACSDK_INFO(LX("openUSBDeviceOngoing")
+               .d("HIDDevicePath", HID_DEVICE_PATH)
+               .d("USBVendorID", USB_VENDOR_ID)
+               .d("USBProductID", USB_PRODUCT_ID));
+
     // Find USB device for reading HID events
     int fd;
     fd = open(HID_DEVICE_PATH, O_RDONLY|O_NONBLOCK);
@@ -159,48 +164,48 @@ uint8_t openUSBDevice(libevdev** evdev, libusb_device_handle** devh) {
     }
 
     libusb_free_device_list(devs, 1);
-
+    ACSDK_INFO(LX("openUSBDeviceSuccess").d("reason", "UsbDeviceOpened"));
     return 0;
 }
 
 
 /**
- * Checks to see if an @c avsCommon::utils::AudioFormat is compatible with HID WW.
+ * Checks to see if an @c avsCommon::utils::AudioFormat is compatible with HID KW.
  *
  * @param audioFormat The audio format to check.
- * @return @c true if the audio format is compatible with HID WW and @c false otherwise.
+ * @return @c true if the audio format is compatible with HID KW and @c false otherwise.
  */
-static bool isAudioFormatCompatibleWithHIDWW(avsCommon::utils::AudioFormat audioFormat) {
+static bool isAudioFormatCompatibleWithHIDKW(avsCommon::utils::AudioFormat audioFormat) {
     if (HID_COMPATIBLE_ENCODING != audioFormat.encoding) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleEncoding")
                         .d("gpiowwEncoding", HID_COMPATIBLE_ENCODING)
                         .d("encoding", audioFormat.encoding));
         return false;
     }
     if (HID_COMPATIBLE_ENDIANNESS != audioFormat.endianness) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleEndianess")
                         .d("gpiowwEndianness", HID_COMPATIBLE_ENDIANNESS)
                         .d("endianness", audioFormat.endianness));
         return false;
     }
     if (HID_COMPATIBLE_SAMPLE_RATE != audioFormat.sampleRateHz) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleSampleRate")
                         .d("gpiowwSampleRate", HID_COMPATIBLE_SAMPLE_RATE)
                         .d("sampleRate", audioFormat.sampleRateHz));
         return false;
     }
     if (HID_COMPATIBLE_SAMPLE_SIZE_IN_BITS != audioFormat.sampleSizeInBits) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleSampleSizeInBits")
                         .d("gpiowwSampleSizeInBits", HID_COMPATIBLE_SAMPLE_SIZE_IN_BITS)
                         .d("sampleSizeInBits", audioFormat.sampleSizeInBits));
         return false;
     }
     if (HID_COMPATIBLE_NUM_CHANNELS != audioFormat.numChannels) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleNumChannels")
                         .d("gpiowwNumChannels", HID_COMPATIBLE_NUM_CHANNELS)
                         .d("numChannels", audioFormat.numChannels));
@@ -227,7 +232,7 @@ std::unique_ptr<HIDKeywordDetector> HIDKeywordDetector::create(
         return nullptr;
     }
 
-    if (!isAudioFormatCompatibleWithHIDWW(audioFormat)) {
+    if (!isAudioFormatCompatibleWithHIDKW(audioFormat)) {
         return nullptr;
     }
 
@@ -312,11 +317,11 @@ void HIDKeywordDetector::detectionLoop() {
             current_index = m_streamReader->tell();
 
             std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
-            ACSDK_DEBUG0(LX("HIDevent").d("absolute elapsed time (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - start_time).count()));
+            ACSDK_DEBUG0(LX("detectionLoopHIDevent").d("absoluteElapsedTime (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - start_time).count()));
 
             // Check if this is not the first HID event
             if (prev_time != std::chrono::steady_clock::time_point()) {
-                ACSDK_DEBUG0(LX("HIDevent").d("elapsed time from previous event (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - prev_time).count()));
+                ACSDK_DEBUG0(LX("detectionLoopHIDevent").d("elapsedTimeFromPreviousEvent (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - prev_time).count()));
             }
             prev_time = current_time;
 
@@ -334,10 +339,10 @@ void HIDKeywordDetector::detectionLoop() {
                 cmd_ret = payload[0];
             }
             if (rc != CONTROL_CMD_PAYLOAD_LEN) {
-                 ACSDK_ERROR(LX("USBControlCommandFailed").d("reason", "control transfer failed"));
+                 ACSDK_ERROR(LX("detectionLoopControlCommand").d("reason", "USBControlTransferFailed"));
             }
             std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-            ACSDK_DEBUG0(LX("USBControlCommand").d("time (us)", std::chrono::duration_cast<std::chrono::microseconds> (end - begin).count() ));
+            ACSDK_DEBUG0(LX("detectionLoopControlCommand").d("time (us)", std::chrono::duration_cast<std::chrono::microseconds> (end - begin).count() ));
 
             // Read indexes
             uint64_t current_device_index = readIndex(payload, 1);
@@ -349,16 +354,16 @@ void HIDKeywordDetector::detectionLoop() {
             // Send information to the server
             notifyKeyWordObservers(
                 m_stream,
-                WAKEWORD_STRING,
+                KEYWORD_STRING,
                 begin_server_index,
                 current_index);
 
-            ACSDK_DEBUG0(LX("Index").d("host current", current_index));
-            ACSDK_DEBUG0(LX("Index").d("device current", current_device_index));
-            ACSDK_DEBUG0(LX("Index").d("device WW end", end_device_index));
-            ACSDK_DEBUG0(LX("Index").d("device WW begin", begin_device_index));
-            ACSDK_DEBUG0(LX("Index").d("server WW end", current_index));
-            ACSDK_DEBUG0(LX("Index").d("server WW begin", begin_device_index));
+            ACSDK_DEBUG0(LX("detectionLoopIndexes").d("hostCurrentIndex", current_index)
+                         .d("deviceCurrentIndex", current_device_index)
+                         .d("deviceKWEndIndex", end_device_index)
+                         .d("deviceKWBeginIndex", begin_device_index)
+                         .d("serverKWEndIndex", current_index)
+                         .d("serverKWBeginIndex", begin_server_index));
         }
     }
 }
