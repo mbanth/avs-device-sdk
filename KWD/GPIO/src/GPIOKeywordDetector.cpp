@@ -44,8 +44,8 @@ static const std::string TAG("GPIOKeywordDetector");
 // Wiring Pi pin 2 which corresponds to Physical/Board pin 13 and GPIO/BCM pin 27
 static const int GPIO_PIN = 2;
 
-/// Wakeword string
-static const std::string WAKEWORD_STRING = "alexa";
+/// Keyword string
+static const std::string KEYWORD_STRING = "alexa";
 
 /// The number of hertz per kilohertz.
 static const size_t HERTZ_PER_KILOHERTZ = 1000;
@@ -53,20 +53,20 @@ static const size_t HERTZ_PER_KILOHERTZ = 1000;
 /// The timeout to use for read calls to the SharedDataStream.
 const std::chrono::milliseconds TIMEOUT_FOR_READ_CALLS = std::chrono::milliseconds(1000);
 
-/// The GPIO WW compatible AVS sample rate of 16 kHz.
+/// The GPIO KW compatible AVS sample rate of 16 kHz.
 static const unsigned int GPIO_COMPATIBLE_SAMPLE_RATE = 16000;
 
-/// The GPIO WW compatible bits per sample of 16.
+/// The GPIO KW compatible bits per sample of 16.
 static const unsigned int GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS = 16;
 
-/// The GPIO WW compatible number of channels, which is 1.
+/// The GPIO KW compatible number of channels, which is 1.
 static const unsigned int GPIO_COMPATIBLE_NUM_CHANNELS = 1;
 
-/// The GPIO WW compatible audio encoding of LPCM.
+/// The GPIO KW compatible audio encoding of LPCM.
 static const avsCommon::utils::AudioFormat::Encoding GPIO_COMPATIBLE_ENCODING =
     avsCommon::utils::AudioFormat::Encoding::LPCM;
 
-/// The GPIO WW compatible endianness which is little endian.
+/// The GPIO KW compatible endianness which is little endian.
 static const avsCommon::utils::AudioFormat::Endianness GPIO_COMPATIBLE_ENDIANNESS =
     avsCommon::utils::AudioFormat::Endianness::LITTLE;
 
@@ -115,15 +115,15 @@ uint8_t openI2CDevice() {
     int fd = -1;
     // Open port for reading and writing
     if ((fd = open(DEVNAME, O_RDWR)) < 0) {
-        ACSDK_ERROR(LX("openI2CDevice")
-                    .d("reason", "openI2CPortFailed"));
+        ACSDK_ERROR(LX("openI2CDeviceFailed")
+                    .d("reason", "openFailed"));
         perror( "" );
         return -1;
     }
     // Set the port options and set the address of the device we wish to speak to
     if ((rc = ioctl(fd, I2C_SLAVE, I2C_ADDRESS)) < 0) {
-        ACSDK_ERROR(LX("openI2CDevice")
-                    .d("reason", "setI2CConfigurationvFailed"));
+        ACSDK_ERROR(LX("openI2CDeviceFailed")
+                    .d("reason", "setI2CConfigurationFailed"));
         perror( "" );
         return -1;
     }
@@ -134,44 +134,44 @@ uint8_t openI2CDevice() {
 }
 
 /**
- * Checks to see if an @c avsCommon::utils::AudioFormat is compatible with GPIO WW.
+ * Checks to see if an @c avsCommon::utils::AudioFormat is compatible with GPIO KW.
  *
  * @param audioFormat The audio format to check.
- * @return @c true if the audio format is compatible with GPIO WW and @c false otherwise.
+ * @return @c true if the audio format is compatible with GPIO KW and @c false otherwise.
  */
-static bool isAudioFormatCompatibleWithGPIOWW(avsCommon::utils::AudioFormat audioFormat) {
+static bool isAudioFormatCompatibleWithGPIOKW(avsCommon::utils::AudioFormat audioFormat) {
     if (GPIO_COMPATIBLE_ENCODING != audioFormat.encoding) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
                         .d("reason", "incompatibleEncoding")
-                        .d("gpiowwEncoding", GPIO_COMPATIBLE_ENCODING)
+                        .d("gpioKWEncoding", GPIO_COMPATIBLE_ENCODING)
                         .d("encoding", audioFormat.encoding));
         return false;
     }
     if (GPIO_COMPATIBLE_ENDIANNESS != audioFormat.endianness) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
                         .d("reason", "incompatibleEndianess")
-                        .d("gpiowwEndianness", GPIO_COMPATIBLE_ENDIANNESS)
+                        .d("gpioKWEndianness", GPIO_COMPATIBLE_ENDIANNESS)
                         .d("endianness", audioFormat.endianness));
         return false;
     }
     if (GPIO_COMPATIBLE_SAMPLE_RATE != audioFormat.sampleRateHz) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
                         .d("reason", "incompatibleSampleRate")
-                        .d("gpiowwSampleRate", GPIO_COMPATIBLE_SAMPLE_RATE)
+                        .d("gpioKWSampleRate", GPIO_COMPATIBLE_SAMPLE_RATE)
                         .d("sampleRate", audioFormat.sampleRateHz));
         return false;
     }
     if (GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS != audioFormat.sampleSizeInBits) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
                         .d("reason", "incompatibleSampleSizeInBits")
-                        .d("gpiowwSampleSizeInBits", GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS)
+                        .d("gpioKWSampleSizeInBits", GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS)
                         .d("sampleSizeInBits", audioFormat.sampleSizeInBits));
         return false;
     }
     if (GPIO_COMPATIBLE_NUM_CHANNELS != audioFormat.numChannels) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOWWFailed")
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
                         .d("reason", "incompatibleNumChannels")
-                        .d("gpiowwNumChannels", GPIO_COMPATIBLE_NUM_CHANNELS)
+                        .d("gpioKWNumChannels", GPIO_COMPATIBLE_NUM_CHANNELS)
                         .d("numChannels", audioFormat.numChannels));
         return false;
     }
@@ -196,7 +196,7 @@ std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
         return nullptr;
     }
 
-    if (!isAudioFormatCompatibleWithGPIOWW(audioFormat)) {
+    if (!isAudioFormatCompatibleWithGPIOKW(audioFormat)) {
         return nullptr;
     }
 
@@ -289,11 +289,11 @@ void GPIOKeywordDetector::detectionLoop() {
         if (gpioValue == LOW && oldGpioValue == HIGH)
         {
             std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
-            ACSDK_DEBUG0(LX("GPIOevent").d("absolute elapsed time (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - start_time).count()));
+            ACSDK_DEBUG0(LX("detectionLoopGPIOevent").d("absoluteElapsedTime (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - start_time).count()));
 
             // Check if this is not the first HID event
             if (prev_time != std::chrono::steady_clock::time_point()) {
-                ACSDK_DEBUG0(LX("GPIOevent").d("elapsed time from previous event (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - prev_time).count()));
+                ACSDK_DEBUG0(LX("detectionLoopGPIOevent").d("elapsedTimeFromPreviousEvent (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - prev_time).count()));
             }
             prev_time = current_time;
 
@@ -334,14 +334,14 @@ void GPIOKeywordDetector::detectionLoop() {
                 rc = ioctl( m_fileDescriptor, I2C_RDWR, &rdwr_data );
 
                 if ( rc < 0 ) {
-                    ACSDK_ERROR(LX("I2CControlCommandFailed").d("reason", rc));
+                    ACSDK_ERROR(LX("detectionLoopControlCommandFailed").d("reason", rc));
                     perror( "" );
                 }
 
                 cmd_ret = payload[0];
             }
             std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-            ACSDK_DEBUG0(LX("I2CControlCommand").d("time (us)", std::chrono::duration_cast<std::chrono::microseconds> (end - begin).count() ));
+            ACSDK_DEBUG0(LX("detectionLoopControlCommand").d("time (us)", std::chrono::duration_cast<std::chrono::microseconds> (end - begin).count() ));
 
             // Read indexes
             uint64_t current_device_index = readIndex(payload, 1);
@@ -352,15 +352,15 @@ void GPIOKeywordDetector::detectionLoop() {
             // Send information to the server
             notifyKeyWordObservers(
                 m_stream,
-                WAKEWORD_STRING,
+                KEYWORD_STRING,
                 begin_server_index,
                 current_index);
-            ACSDK_DEBUG0(LX("Index").d("host current", current_index));
-            ACSDK_DEBUG0(LX("Index").d("device current", current_device_index));
-            ACSDK_DEBUG0(LX("Index").d("device WW end", end_device_index));
-            ACSDK_DEBUG0(LX("Index").d("device WW begin", begin_device_index));
-            ACSDK_DEBUG0(LX("Index").d("server WW end", current_index));
-            ACSDK_DEBUG0(LX("Index").d("server WW begin", begin_device_index));
+            ACSDK_DEBUG0(LX("detectionLoopIndexes").d("hostCurrentIndex", current_index)
+                         .d("deviceCurrentIndex", current_device_index)
+                         .d("deviceKWEndIndex", end_device_index)
+                         .d("deviceKWBeginIndex", begin_device_index)
+                         .d("serverKWEndIndex", current_index)
+                         .d("serverKWBeginIndex", begin_server_index));
         }
         oldGpioValue = gpioValue;
     }

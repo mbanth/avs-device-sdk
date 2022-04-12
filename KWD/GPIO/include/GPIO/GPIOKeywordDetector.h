@@ -49,10 +49,7 @@ public:
      * @param audioFormat The format of the audio data located within the stream.
      * @param keyWordObservers The observers to notify of keyword detections.
      * @param keyWordDetectorStateObservers The observers to notify of state changes in the engine.
-     * @param msToPushPerIteration The amount of data in milliseconds to push to GPIO WW at a time. Smaller sizes will
-     * lead to less delay but more CPU usage. Additionally, larger amounts of data fed into the engine per iteration
-     * might lead longer delays before receiving keyword detection events. This has been defaulted to 10 milliseconds
-     * as it is a good trade off between CPU usage and recognition delay. Additionally, this was the amount used by
+     * @param msToPushPerIteration The amount of data in milliseconds to push to the cloud  at a time. This was the amount used by
      * Sensory in example code.
      * @return A new @c GPIOKeywordDetector, or @c nullptr if the operation failed.
      */
@@ -77,10 +74,8 @@ private:
      * @param audioFormat The format of the audio data located within the stream.
      * @param keyWordObservers The observers to notify of keyword detections.
      * @param keyWordDetectorStateObservers The observers to notify of state changes in the engine.
-     * @param msToPushPerIteration The amount of data in milliseconds to push to GPIO WW at a time. Smaller sizes will
-     * lead to less delay but more CPU usage. Additionally, larger amounts of data fed into the engine per iteration
-     * might lead longer delays before receiving keyword detection events. This has been defaulted to 10 milliseconds
-     * as it is a good trade off between CPU usage and recognition delay.
+     * @param msToPushPerIteration The amount of data in milliseconds to push to the cloud  at a time. This was the amount used by
+     * Sensory in example code.
      */
     GPIOKeywordDetector(
         std::shared_ptr<AudioInputStream> stream,
