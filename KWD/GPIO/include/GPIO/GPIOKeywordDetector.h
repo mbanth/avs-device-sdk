@@ -56,7 +56,7 @@ public:
     static std::unique_ptr<GPIOKeywordDetector> create(
         std::shared_ptr<AudioInputStream> stream,
         avsCommon::utils::AudioFormat audioFormat,
-        std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> kexyWordObservers,
+        std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
         std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
