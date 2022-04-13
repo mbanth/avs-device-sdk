@@ -348,24 +348,24 @@ void HIDKeywordDetector::detectionLoop() {
 
             // Read indexes
             uint64_t currentDeviceIndex = readIndex(payload, 1);
-            uint64_t beginWWDeviceIndex = readIndex(payload, 9);
-            uint64_t endWWDeviceIndex = readIndex(payload, 17);
+            uint64_t beginKWDeviceIndex = readIndex(payload, 9);
+            uint64_t endKWDeviceIndex = readIndex(payload, 17);
 
-            auto beginWWServerIndex = currentIndex - (currentDeviceIndex - beginWWDeviceIndex);
+            auto beginKWServerIndex = currentIndex - (currentDeviceIndex - beginKWDeviceIndex);
 
             // Send information to the server
             notifyKeyWordObservers(
                 m_stream,
                 KEYWORD_STRING,
-                beginWWServerIndex,
+                beginKWServerIndex,
                 currentIndex);
 
             ACSDK_DEBUG0(LX("detectionLoopIndexes").d("hostCurrentIndex", currentIndex)
                          .d("deviceCurrentIndex", currentDeviceIndex)
-                         .d("deviceKWEndIndex", endWWDeviceIndex)
-                         .d("deviceKWBeginIndex", beginWWDeviceIndex)
+                         .d("deviceKWEndIndex", endKWDeviceIndex)
+                         .d("deviceKWBeginIndex", beginKWDeviceIndex)
                          .d("serverKWEndIndex", currentIndex)
-                         .d("serverKWBeginIndex", beginWWServerIndex));
+                         .d("serverKWBeginIndex", beginKWServerIndex));
         }
     }
 }
