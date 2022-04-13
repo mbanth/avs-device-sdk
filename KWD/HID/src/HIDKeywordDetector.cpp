@@ -98,7 +98,7 @@ static const int CONTROL_CMD_PAYLOAD_LEN = 25;
  * @param start_index The index in the payload to start reading from
  * @return value stored in payload
  */
-uint64_t readIndex(uint8_t* payload, int start_index) {
+static uint64_t readIndex(uint8_t* payload, int start_index) {
     uint64_t value = 0;
     for (int i=start_index; i<8+start_index; i++) {
         // Shift the byte by the right number of bits
@@ -114,7 +114,7 @@ uint64_t readIndex(uint8_t* payload, int start_index) {
  * @param devh  The device handler necessary for sending control commands
  * @return 0 if device is found and handlers correctly set
  */
-uint8_t openUSBDevice(libevdev** evdev, libusb_device_handle** devh) {
+static uint8_t openUSBDevice(libevdev** evdev, libusb_device_handle** devh) {
     int rc = 1;
     libusb_device **devs = NULL;
     libusb_device *dev = NULL;
@@ -295,6 +295,10 @@ void HIDKeywordDetector::readAudioLoop() {
             audioDataToPush.size(),
             TIMEOUT_FOR_READ_CALLS,
             &didErrorOccur);
+        if (didErrorOccur) {
+            m_isShuttingDown = true;
+        }
+
     }
 }
 

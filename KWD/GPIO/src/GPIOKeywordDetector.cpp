@@ -96,7 +96,7 @@ static const int CONTROL_CMD_PAYLOAD_LEN = 25;
  * @param start_index The index in the payload to start reading from
  * @return value stored in payload
  */
-uint64_t readIndex(uint8_t* payload, int start_index) {
+static uint64_t readIndex(uint8_t* payload, int start_index) {
     uint64_t value = 0;
     for (int i=start_index; i<8+start_index; i++) {
         // Shift the byte by the right number of bits
@@ -110,7 +110,7 @@ uint64_t readIndex(uint8_t* payload, int start_index) {
  *
  * @return file descriptor with the connected device
  */
-uint8_t openI2CDevice() {
+static uint8_t openI2CDevice() {
     int rc = 0;
     int fd = -1;
     // Open port for reading and writing
@@ -267,13 +267,15 @@ void GPIOKeywordDetector::readAudioLoop() {
             audioDataToPush.size(),
             TIMEOUT_FOR_READ_CALLS,
             &didErrorOccur);
+        if (didErrorOccur) {
+            m_isShuttingDown = true;
+        }
     }
 }
 
 void GPIOKeywordDetector::detectionLoop() {
     m_beginIndexOfStreamReader = m_streamReader->tell();
     notifyKeyWordDetectorStateObservers(KeyWordDetectorStateObserverInterface::KeyWordDetectorState::ACTIVE);
-    std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
     int oldGpioValue = HIGH;
 
     std::chrono::steady_clock::time_point prev_time;

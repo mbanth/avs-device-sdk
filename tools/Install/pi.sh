@@ -28,17 +28,17 @@ show_help() {
   echo  'Usage: pi.sh [OPTIONS]'
   echo  ''
   echo  'Optional parameters'
-  echo  '  -g                    Flag to enable keyword detector on GPIO interrupt'
-  echo  '  -k                    Flag to enable keyword detector on HID event'
+  echo  '  -G                    Flag to enable keyword detector on GPIO interrupt'
+  echo  '  -H                    Flag to enable keyword detector on HID event'
   echo  '  -h                    Display this help and exit'
 }
-OPTIONS=gkh
+OPTIONS=GHh
 while getopts "$OPTIONS" opt ; do
     case $opt in
-        g ) 
+        G ) 
             GPIO_KEY_WORD_DETECTOR_FLAG="ON"
             ;;
-        k ) 
+        H ) 
             HID_KEY_WORD_DETECTOR_FLAG="ON"
             ;;
         h )
