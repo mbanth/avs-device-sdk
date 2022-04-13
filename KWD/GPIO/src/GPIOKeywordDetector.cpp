@@ -282,7 +282,7 @@ void GPIOKeywordDetector::detectionLoop() {
     std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
 
     while (!m_isShuttingDown) {
-        auto current_index = m_streamReader->tell();
+        auto currentIndex = m_streamReader->tell();
 
         // Read gpio value
         int gpioValue = digitalRead(GPIO_PIN);
@@ -346,23 +346,23 @@ void GPIOKeywordDetector::detectionLoop() {
             ACSDK_DEBUG0(LX("detectionLoopControlCommand").d("time (us)", std::chrono::duration_cast<std::chrono::microseconds> (end - begin).count() ));
 
             // Read indexes
-            uint64_t current_device_index = readIndex(payload, 1);
-            uint64_t begin_device_index = readIndex(payload, 9);
-            uint64_t end_device_index = readIndex(payload, 17);
-            auto begin_server_index = current_index - (current_device_index - begin_device_index);
+            uint64_t currentDeviceIndex = readIndex(payload, 1);
+            uint64_t beginWWDeviceIndex = readIndex(payload, 9);
+            uint64_t endWWDeviceIndex = readIndex(payload, 17);
+            auto beginWWServerIndex = currentIndex - (currentDeviceIndex - beginWWDeviceIndex);
 
             // Send information to the server
             notifyKeyWordObservers(
                 m_stream,
                 KEYWORD_STRING,
-                begin_server_index,
-                current_index);
-            ACSDK_DEBUG0(LX("detectionLoopIndexes").d("hostCurrentIndex", current_index)
-                         .d("deviceCurrentIndex", current_device_index)
-                         .d("deviceKWEndIndex", end_device_index)
-                         .d("deviceKWBeginIndex", begin_device_index)
-                         .d("serverKWEndIndex", current_index)
-                         .d("serverKWBeginIndex", begin_server_index));
+                beginWWServerIndex,
+                currentIndex);
+            ACSDK_DEBUG0(LX("detectionLoopIndexes").d("hostCurrentIndex", currentIndex)
+                         .d("deviceCurrentIndex", currentDeviceIndex)
+                         .d("deviceKWEndIndex", endWWDeviceIndex)
+                         .d("deviceKWBeginIndex", beginWWDeviceIndex)
+                         .d("serverKWEndIndex", currentIndex)
+                         .d("serverKWBeginIndex", beginWWServerIndex));
         }
         oldGpioValue = gpioValue;
     }
