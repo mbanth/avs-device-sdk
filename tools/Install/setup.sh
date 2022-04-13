@@ -150,7 +150,7 @@ XMOS_TAG=$2
 
 shift 2
 
-OPTIONS=s:a:d:m:x:gkh
+OPTIONS=s:a:d:m:x:GHh
 while getopts "$OPTIONS" opt ; do
     case $opt in
         s )
@@ -173,11 +173,11 @@ while getopts "$OPTIONS" opt ; do
         x )
             XMOS_DEVICE="$OPTARG"
             ;;
-        g )
-            GPIO_KEY_WORD_DETECTOR_FLAG="-g"
+        G )
+            GPIO_KEY_WORD_DETECTOR_FLAG="-G"
             ;;
-        k )
-            HID_KEY_WORD_DETECTOR_FLAG="-k"
+        H )
+            HID_KEY_WORD_DETECTOR_FLAG="-H"
             ;;
         h )
             show_help
