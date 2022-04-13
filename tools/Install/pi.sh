@@ -28,16 +28,19 @@ show_help() {
   echo  'Usage: pi.sh [OPTIONS]'
   echo  ''
   echo  'Optional parameters'
-  echo  '  -g                    Flag to enable keyword detector on GPIO interrupt'
+  echo  '  -G                    Flag to enable keyword detector on GPIO interrupt'
+  echo  '  -H                    Flag to enable keyword detector on HID event'
   echo  '  -h                    Display this help and exit'
 }
-
-OPTIONS=gh
+OPTIONS=GHh
 while getopts "$OPTIONS" opt ; do
     case $opt in
-        g ) GPIO_KEY_WORD_DETECTOR_FLAG="ON"
+        G ) 
+            GPIO_KEY_WORD_DETECTOR_FLAG="ON"
             ;;
-
+        H ) 
+            HID_KEY_WORD_DETECTOR_FLAG="ON"
+            ;;
         h )
             show_help
             exit 1
@@ -48,24 +51,24 @@ done
 SOUND_CONFIG="$HOME/.asoundrc"
 START_SCRIPT="$INSTALL_BASE/startsample.sh"
 START_PREVIEW_SCRIPT="$INSTALL_BASE/startpreview.sh"
+CMAKE_PLATFORM_SPECIFIC=(-DGSTREAMER_MEDIA_PLAYER=ON -DPORTAUDIO=ON \
+      -DPORTAUDIO_LIB_PATH="$THIRD_PARTY_PATH/portaudio/lib/.libs/libportaudio.$LIB_SUFFIX" \
+      -DPORTAUDIO_INCLUDE_DIR="$THIRD_PARTY_PATH/portaudio/include" \
+      -DCURL_INCLUDE_DIR=${THIRD_PARTY_PATH}/curl-${CURL_VER}/include \
+      -DCURL_LIBRARY=${THIRD_PARTY_PATH}/curl-${CURL_VER}/lib/.libs/libcurl.so)
 
-if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
+# Add the flags for the different keyword detectors
+if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ] && [ -z $HID_KEY_WORD_DETECTOR_FLAG ]
 then
-    CMAKE_PLATFORM_SPECIFIC=(-DSENSORY_KEY_WORD_DETECTOR=ON \
-        -DGSTREAMER_MEDIA_PLAYER=ON -DPORTAUDIO=ON \
-        -DPORTAUDIO_LIB_PATH="$THIRD_PARTY_PATH/portaudio/lib/.libs/libportaudio.$LIB_SUFFIX" \
-        -DPORTAUDIO_INCLUDE_DIR="$THIRD_PARTY_PATH/portaudio/include" \
+  CMAKE_PLATFORM_SPECIFIC+=(-DSENSORY_KEY_WORD_DETECTOR=ON \
         -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=$THIRD_PARTY_PATH/alexa-rpi/lib/libsnsr.a \
-        -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$THIRD_PARTY_PATH/alexa-rpi/include \
-        -DCURL_INCLUDE_DIR=${THIRD_PARTY_PATH}/curl-${CURL_VER}/include \
-        -DCURL_LIBRARY=${THIRD_PARTY_PATH}/curl-${CURL_VER}/lib/.libs/libcurl.so)
-else
-    CMAKE_PLATFORM_SPECIFIC=(-DGPIO_KEY_WORD_DETECTOR=ON \
-        -DGSTREAMER_MEDIA_PLAYER=ON -DPORTAUDIO=ON \
-        -DPORTAUDIO_LIB_PATH="$THIRD_PARTY_PATH/portaudio/lib/.libs/libportaudio.$LIB_SUFFIX" \
-        -DPORTAUDIO_INCLUDE_DIR="$THIRD_PARTY_PATH/portaudio/include" \
-        -DCURL_INCLUDE_DIR=${THIRD_PARTY_PATH}/curl-${CURL_VER}/include \
-        -DCURL_LIBRARY=${THIRD_PARTY_PATH}/curl-${CURL_VER}/lib/.libs/libcurl.so)
+        -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$THIRD_PARTY_PATH/alexa-rpi/include)
+elif [ -n "$GPIO_KEY_WORD_DETECTOR_FLAG" ]
+then
+  CMAKE_PLATFORM_SPECIFIC+=(-DGPIO_KEY_WORD_DETECTOR=ON)
+elif [ -n "$HID_KEY_WORD_DETECTOR_FLAG" ]
+then
+  CMAKE_PLATFORM_SPECIFIC+=(-DHID_KEY_WORD_DETECTOR=ON)
 fi
 
 GSTREAMER_AUDIO_SINK="alsasink"
@@ -78,7 +81,7 @@ install_dependencies() {
 run_os_specifics() {
   build_port_audio
   build_curl
-  if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ]
+  if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ||  -z $HID_KEY_WORD_DETECTOR_FLAG ]
   then
     build_kwd_engine
   fi

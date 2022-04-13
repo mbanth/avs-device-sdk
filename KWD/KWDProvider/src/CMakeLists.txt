@@ -10,6 +10,10 @@ if(SENSORY_KEY_WORD_DETECTOR)
     target_link_libraries(KeywordDetectorProvider SENSORY)
 endif()
 
+if(HID_KEY_WORD_DETECTOR)
+    target_link_libraries(KeywordDetectorProvider HID)
+endif()
+
 if(GPIO_KEY_WORD_DETECTOR)
     target_link_libraries(KeywordDetectorProvider GPIO)
 endif()
