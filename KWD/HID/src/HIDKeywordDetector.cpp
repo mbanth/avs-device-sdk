@@ -99,12 +99,12 @@ static const int CONTROL_CMD_PAYLOAD_LEN = 25;
  * @return value stored in payload
  */
 static uint64_t readIndex(uint8_t* payload, int start_index) {
-    uint64_t value = 0;
-    for (int i=start_index; i<8+start_index; i++) {
-        // Shift the byte by the right number of bits
-        value += payload[i] << ((8-(i-start_index)-1)*8);
-    }
-    return value;
+    uint64_t u64value = 0;
+    // convert array of bytes into uint64_t value
+    memcpy(&u64value, &payload[start_index], sizeof(uint64_t));
+    // swap bytes of uint64_t value
+    u64value = __bswap_64(u64value);
+    return u64value;
 }
 
 /**
