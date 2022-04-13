@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
             }
         }
     } else {
-#if defined(KWD_SENSORY) || defined(KWD_GPIO)
+#if defined(KWD_SENSORY) || defined(KWD_GPIO) || defined(KWD_HID)
         if (argc < 3) {
             ConsolePrinter::simplePrint(
                 "USAGE: " + std::string(argv[0]) +

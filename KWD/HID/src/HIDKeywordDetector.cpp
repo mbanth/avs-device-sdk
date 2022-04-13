@@ -16,14 +16,13 @@
  */
 
 #include <memory>
-#include <wiringPi.h>
-#include <linux/i2c-dev.h>
-#include <linux/i2c.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
+#include <unistd.h>
+#include <chrono>
 
 #include <AVSCommon/Utils/Logger/Logger.h>
-#include "GPIO/GPIOKeywordDetector.h"
+
+#include "HID/HIDKeywordDetector.h"
 
 namespace alexaClientSDK {
 namespace kwd {
@@ -31,7 +30,7 @@ namespace kwd {
 using namespace avsCommon::utils::logger;
 
 /// String to identify log entries originating from this file.
-static const std::string TAG("GPIOKeywordDetector");
+static const std::string TAG("HIDKeywordDetector");
 
 /**
  * Create a LogEntry using this file's TAG and the specified event string.
@@ -39,10 +38,6 @@ static const std::string TAG("GPIOKeywordDetector");
  * @param The event string for this @c LogEntry.
  */
 #define LX(event) alexaClientSDK::avsCommon::utils::logger::LogEntry(TAG, event)
-
-/// GPIO pin to monitor:
-// Wiring Pi pin 2 which corresponds to Physical/Board pin 13 and GPIO/BCM pin 27
-static const int GPIO_PIN = 2;
 
 /// Keyword string
 static const std::string KEYWORD_STRING = "alexa";
@@ -53,31 +48,38 @@ static const size_t HERTZ_PER_KILOHERTZ = 1000;
 /// The timeout to use for read calls to the SharedDataStream.
 const std::chrono::milliseconds TIMEOUT_FOR_READ_CALLS = std::chrono::milliseconds(1000);
 
-/// The GPIO KW compatible AVS sample rate of 16 kHz.
-static const unsigned int GPIO_COMPATIBLE_SAMPLE_RATE = 16000;
+/// The HID KW compatible AVS sample rate of 16 kHz.
+static const unsigned int HID_COMPATIBLE_SAMPLE_RATE = 16000;
 
-/// The GPIO KW compatible bits per sample of 16.
-static const unsigned int GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS = 16;
+/// The HID KW compatible bits per sample of 16.
+static const unsigned int HID_COMPATIBLE_SAMPLE_SIZE_IN_BITS = 16;
 
-/// The GPIO KW compatible number of channels, which is 1.
-static const unsigned int GPIO_COMPATIBLE_NUM_CHANNELS = 1;
+/// The HID KW compatible number of channels, which is 1.
+static const unsigned int HID_COMPATIBLE_NUM_CHANNELS = 1;
 
-/// The GPIO KW compatible audio encoding of LPCM.
-static const avsCommon::utils::AudioFormat::Encoding GPIO_COMPATIBLE_ENCODING =
+/// The HID KW compatible audio encoding of LPCM.
+static const avsCommon::utils::AudioFormat::Encoding HID_COMPATIBLE_ENCODING =
     avsCommon::utils::AudioFormat::Encoding::LPCM;
 
-/// The GPIO KW compatible endianness which is little endian.
-static const avsCommon::utils::AudioFormat::Endianness GPIO_COMPATIBLE_ENDIANNESS =
+/// The HID KW compatible endianness which is little endian.
+static const avsCommon::utils::AudioFormat::Endianness HID_COMPATIBLE_ENDIANNESS =
     avsCommon::utils::AudioFormat::Endianness::LITTLE;
 
-/// The device name of the I2C port connected to the device.
-static const char *DEVNAME = "/dev/i2c-1";
+/// HID keycode to monitor:
+static const char * HID_KEY_CODE = "KEY_T";
 
-/// The address of the I2C port connected to the device.
-static const unsigned char I2C_ADDRESS = 0x2C;
+/// HID device path
 
-/// The maximum size in bytes of the I2C transaction
-static const int I2C_TRANSACTION_MAX_BYTES = 256;
+static const char * HID_DEVICE_PATH =  "/dev/input/event0";
+
+/// USB Product ID of XMOS device
+static const int USB_VENDOR_ID = 0x20B1;
+
+/// USB Product ID of XMOS device
+static const int USB_PRODUCT_ID = 0x18;
+
+/// USB timeout for control transfer
+static const int USB_TIMEOUT_MS = 500;
 
 /// The resource ID of the XMOS control command.
 static const int CONTROL_RESOURCE_ID = 0xE0;
@@ -106,79 +108,113 @@ static uint64_t readIndex(uint8_t* payload, int start_index) {
 }
 
 /**
- * Open the I2C port connected to the device
+ * Search for an USB device, open the connection and return the correct handlers
  *
- * @return file descriptor with the connected device
+ * @param evdev The device handler necessary for reading HID events
+ * @param devh  The device handler necessary for sending control commands
+ * @return 0 if device is found and handlers correctly set
  */
-static uint8_t openI2CDevice() {
-    int rc = 0;
-    int fd = -1;
-    // Open port for reading and writing
-    if ((fd = open(DEVNAME, O_RDWR)) < 0) {
-        ACSDK_ERROR(LX("openI2CDeviceFailed")
-                    .d("reason", "openFailed"));
-        perror( "" );
-        return -1;
-    }
-    // Set the port options and set the address of the device we wish to speak to
-    if ((rc = ioctl(fd, I2C_SLAVE, I2C_ADDRESS)) < 0) {
-        ACSDK_ERROR(LX("openI2CDeviceFailed")
-                    .d("reason", "setI2CConfigurationFailed"));
-        perror( "" );
+static uint8_t openUSBDevice(libevdev** evdev, libusb_device_handle** devh) {
+    int rc = 1;
+    libusb_device **devs = NULL;
+    libusb_device *dev = NULL;
+
+    ACSDK_INFO(LX("openUSBDeviceOngoing")
+               .d("HIDDevicePath", HID_DEVICE_PATH)
+               .d("USBVendorID", USB_VENDOR_ID)
+               .d("USBProductID", USB_PRODUCT_ID));
+
+    // Find USB device for reading HID events
+    int fd;
+    fd = open(HID_DEVICE_PATH, O_RDONLY|O_NONBLOCK);
+    rc = libevdev_new_from_fd(fd, evdev);
+    if (rc < 0) {
+        ACSDK_ERROR(LX("openUSBDeviceFailed")
+                        .d("reason", "initialiseLibevdevFailed")
+                        .d("error", strerror(-rc)));
         return -1;
     }
 
-    ACSDK_INFO(LX("openI2CDeviceSuccess").d("port", I2C_ADDRESS));
+    // Find USB device for sending control commands
+    int ret = libusb_init(NULL);
+    if (ret < 0) {
+        ACSDK_ERROR(LX("openUSBDeviceFailed").d("reason", "initialiseLibUsbFailed"));
+        return -1;
+    }
 
-    return fd;
+    int num_dev = libusb_get_device_list(NULL, &devs);
+
+    for (int i = 0; i < num_dev; i++) {
+        struct libusb_device_descriptor desc;
+        libusb_get_device_descriptor(devs[i], &desc);
+        if (desc.idVendor == USB_VENDOR_ID && desc.idProduct == USB_PRODUCT_ID) {
+          dev = devs[i];
+          break;
+        }
+    }
+
+    if (dev == NULL) {
+        ACSDK_ERROR(LX("openUSBDeviceFailed").d("reason", "UsbDeviceNotFound"));
+        return -1;
+    }
+
+    if (libusb_open(dev, devh) < 0) {
+        ACSDK_ERROR(LX("openUSBDeviceFailed").d("reason", "UsbDeviceNotOpened"));
+        return -1;
+    }
+
+    libusb_free_device_list(devs, 1);
+    ACSDK_INFO(LX("openUSBDeviceSuccess").d("reason", "UsbDeviceOpened"));
+    return 0;
 }
 
+
 /**
- * Checks to see if an @c avsCommon::utils::AudioFormat is compatible with GPIO KW.
+ * Checks to see if an @c avsCommon::utils::AudioFormat is compatible with HID KW.
  *
  * @param audioFormat The audio format to check.
- * @return @c true if the audio format is compatible with GPIO KW and @c false otherwise.
+ * @return @c true if the audio format is compatible with HID KW and @c false otherwise.
  */
-static bool isAudioFormatCompatibleWithGPIOKW(avsCommon::utils::AudioFormat audioFormat) {
-    if (GPIO_COMPATIBLE_ENCODING != audioFormat.encoding) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
+static bool isAudioFormatCompatibleWithHIDKW(avsCommon::utils::AudioFormat audioFormat) {
+    if (HID_COMPATIBLE_ENCODING != audioFormat.encoding) {
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleEncoding")
-                        .d("gpioKWEncoding", GPIO_COMPATIBLE_ENCODING)
+                        .d("gpiowwEncoding", HID_COMPATIBLE_ENCODING)
                         .d("encoding", audioFormat.encoding));
         return false;
     }
-    if (GPIO_COMPATIBLE_ENDIANNESS != audioFormat.endianness) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
+    if (HID_COMPATIBLE_ENDIANNESS != audioFormat.endianness) {
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleEndianess")
-                        .d("gpioKWEndianness", GPIO_COMPATIBLE_ENDIANNESS)
+                        .d("gpiowwEndianness", HID_COMPATIBLE_ENDIANNESS)
                         .d("endianness", audioFormat.endianness));
         return false;
     }
-    if (GPIO_COMPATIBLE_SAMPLE_RATE != audioFormat.sampleRateHz) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
+    if (HID_COMPATIBLE_SAMPLE_RATE != audioFormat.sampleRateHz) {
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleSampleRate")
-                        .d("gpioKWSampleRate", GPIO_COMPATIBLE_SAMPLE_RATE)
+                        .d("gpiowwSampleRate", HID_COMPATIBLE_SAMPLE_RATE)
                         .d("sampleRate", audioFormat.sampleRateHz));
         return false;
     }
-    if (GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS != audioFormat.sampleSizeInBits) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
+    if (HID_COMPATIBLE_SAMPLE_SIZE_IN_BITS != audioFormat.sampleSizeInBits) {
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleSampleSizeInBits")
-                        .d("gpioKWSampleSizeInBits", GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS)
+                        .d("gpiowwSampleSizeInBits", HID_COMPATIBLE_SAMPLE_SIZE_IN_BITS)
                         .d("sampleSizeInBits", audioFormat.sampleSizeInBits));
         return false;
     }
-    if (GPIO_COMPATIBLE_NUM_CHANNELS != audioFormat.numChannels) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
+    if (HID_COMPATIBLE_NUM_CHANNELS != audioFormat.numChannels) {
+        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
                         .d("reason", "incompatibleNumChannels")
-                        .d("gpioKWNumChannels", GPIO_COMPATIBLE_NUM_CHANNELS)
+                        .d("gpiowwNumChannels", HID_COMPATIBLE_NUM_CHANNELS)
                         .d("numChannels", audioFormat.numChannels));
         return false;
     }
     return true;
 }
 
-std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
+std::unique_ptr<HIDKeywordDetector> HIDKeywordDetector::create(
         std::shared_ptr<AudioInputStream> stream,
         avsCommon::utils::AudioFormat audioFormat,
         std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
@@ -196,11 +232,11 @@ std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
         return nullptr;
     }
 
-    if (!isAudioFormatCompatibleWithGPIOKW(audioFormat)) {
+    if (!isAudioFormatCompatibleWithHIDKW(audioFormat)) {
         return nullptr;
     }
 
-    std::unique_ptr<GPIOKeywordDetector> detector(new GPIOKeywordDetector(
+    std::unique_ptr<HIDKeywordDetector> detector(new HIDKeywordDetector(
         stream, keyWordObservers, keyWordDetectorStateObservers, audioFormat));
 
     if (!detector->init()) {
@@ -211,7 +247,7 @@ std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
     return detector;
 }
 
-GPIOKeywordDetector::GPIOKeywordDetector(
+HIDKeywordDetector::HIDKeywordDetector(
     std::shared_ptr<AudioInputStream> stream,
     std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
     std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
@@ -222,43 +258,35 @@ GPIOKeywordDetector::GPIOKeywordDetector(
         m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
 }
 
-GPIOKeywordDetector::~GPIOKeywordDetector() {
+HIDKeywordDetector::~HIDKeywordDetector() {
     m_isShuttingDown = true;
     if (m_detectionThread.joinable())
         m_detectionThread.join();
     if (m_readAudioThread.joinable())
         m_readAudioThread.join();
+
 }
 
-bool GPIOKeywordDetector::init() {
-    setenv("WIRINGPI_GPIOMEM", "1", 1);
-    if (wiringPiSetup() < 0) {
-        ACSDK_ERROR(LX("initFailed").d("reason", "wiringPiSetup failed"));
-        return false;
-    }
-    pinMode(GPIO_PIN, INPUT);
-
-    if ((m_fileDescriptor = openI2CDevice())<0) {
-        ACSDK_ERROR(LX("detectionLoopFailed").d("reason", "openI2CDeviceFailed"));
-        return false;
-    }
-
+bool HIDKeywordDetector::init() {
     m_streamReader = m_stream->createReader(AudioInputStream::Reader::Policy::BLOCKING);
     if (!m_streamReader) {
         ACSDK_ERROR(LX("initFailed").d("reason", "createStreamReaderFailed"));
         return false;
     }
 
+    if (openUSBDevice(&m_evdev, &m_devh) != 0) {
+        return false;
+    }
+
     m_isShuttingDown = false;
-    m_readAudioThread = std::thread(&GPIOKeywordDetector::readAudioLoop, this);
-    m_detectionThread = std::thread(&GPIOKeywordDetector::detectionLoop, this);
+    m_readAudioThread = std::thread(&HIDKeywordDetector::readAudioLoop, this);
+    m_detectionThread = std::thread(&HIDKeywordDetector::detectionLoop, this);
     return true;
 }
 
-void GPIOKeywordDetector::readAudioLoop() {
+void HIDKeywordDetector::readAudioLoop() {
     std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
     bool didErrorOccur = false;
-
     while (!m_isShuttingDown) {
         readFromStream(
             m_streamReader,
@@ -270,32 +298,32 @@ void GPIOKeywordDetector::readAudioLoop() {
         if (didErrorOccur) {
             m_isShuttingDown = true;
         }
+
     }
 }
 
-void GPIOKeywordDetector::detectionLoop() {
-    m_beginIndexOfStreamReader = m_streamReader->tell();
+void HIDKeywordDetector::detectionLoop() {
     notifyKeyWordDetectorStateObservers(KeyWordDetectorStateObserverInterface::KeyWordDetectorState::ACTIVE);
-    int oldGpioValue = HIGH;
+    int rc = 1;
 
     std::chrono::steady_clock::time_point prev_time;
     std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
 
     while (!m_isShuttingDown) {
         auto currentIndex = m_streamReader->tell();
-
-        // Read gpio value
-        int gpioValue = digitalRead(GPIO_PIN);
-
-        // Check if GPIO pin is changing from high to low
-        if (gpioValue == LOW && oldGpioValue == HIGH)
+        struct input_event ev;
+        rc = libevdev_next_event(m_evdev, LIBEVDEV_READ_FLAG_NORMAL, &ev);
+        // wait for HID_KEY_CODE true event
+        if (rc == 0 && strcmp(libevdev_event_type_get_name(ev.type), "EV_KEY")==0 && \
+            strcmp(libevdev_event_code_get_name(ev.type, ev.code), HID_KEY_CODE)==0 && \
+            ev.value == 1)
         {
             std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
-            ACSDK_DEBUG0(LX("detectionLoopGPIOevent").d("absoluteElapsedTime (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - start_time).count()));
+            ACSDK_DEBUG0(LX("detectionLoopHIDevent").d("absoluteElapsedTime (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - start_time).count()));
 
             // Check if this is not the first HID event
             if (prev_time != std::chrono::steady_clock::time_point()) {
-                ACSDK_DEBUG0(LX("detectionLoopGPIOevent").d("elapsedTimeFromPreviousEvent (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - prev_time).count()));
+                ACSDK_DEBUG0(LX("detectionLoopHIDevent").d("elapsedTimeFromPreviousEvent (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - prev_time).count()));
             }
             prev_time = current_time;
 
@@ -305,42 +333,15 @@ void GPIOKeywordDetector::detectionLoop() {
             uint8_t cmd_ret = 1;
 
             std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-            int rc = 0;
             while (cmd_ret!=0) {
-                // Do a repeated start (write followed by read with no stop bit)
-                unsigned char read_hdr[I2C_TRANSACTION_MAX_BYTES];
-                read_hdr[0] = CONTROL_RESOURCE_ID;
-                read_hdr[1] = CONTROL_CMD_ID;
-                read_hdr[2] = (uint8_t)CONTROL_CMD_PAYLOAD_LEN;
-
-                struct i2c_msg rdwr_msgs[2] = {
-                    {  // Start address
-                        .addr = I2C_ADDRESS,
-                        .flags = 0, // write
-                        .len = 3, // this is always 3
-                        .buf = read_hdr
-                    },
-                    { // Read buffer
-                        .addr = I2C_ADDRESS,
-                        .flags = I2C_M_RD, // read
-                        .len = CONTROL_CMD_PAYLOAD_LEN,
-                        .buf = payload
-                    }
-                };
-
-                struct i2c_rdwr_ioctl_data rdwr_data = {
-                    .msgs = rdwr_msgs,
-                    .nmsgs = 2
-                };
-
-                rc = ioctl( m_fileDescriptor, I2C_RDWR, &rdwr_data );
-
-                if ( rc < 0 ) {
-                    ACSDK_ERROR(LX("detectionLoopControlCommandFailed").d("reason", rc));
-                    perror( "" );
-                }
+                rc = libusb_control_transfer(m_devh,
+                    LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE,
+                    0, CONTROL_CMD_ID, CONTROL_RESOURCE_ID, payload, CONTROL_CMD_PAYLOAD_LEN, USB_TIMEOUT_MS);
 
                 cmd_ret = payload[0];
+            }
+            if (rc != CONTROL_CMD_PAYLOAD_LEN) {
+                 ACSDK_ERROR(LX("detectionLoopControlCommand").d("reason", "USBControlTransferFailed"));
             }
             std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
             ACSDK_DEBUG0(LX("detectionLoopControlCommand").d("time (us)", std::chrono::duration_cast<std::chrono::microseconds> (end - begin).count() ));
@@ -349,6 +350,7 @@ void GPIOKeywordDetector::detectionLoop() {
             uint64_t currentDeviceIndex = readIndex(payload, 1);
             uint64_t beginKWDeviceIndex = readIndex(payload, 9);
             uint64_t endKWDeviceIndex = readIndex(payload, 17);
+
             auto beginKWServerIndex = currentIndex - (currentDeviceIndex - beginKWDeviceIndex);
 
             // Send information to the server
@@ -357,6 +359,7 @@ void GPIOKeywordDetector::detectionLoop() {
                 KEYWORD_STRING,
                 beginKWServerIndex,
                 currentIndex);
+
             ACSDK_DEBUG0(LX("detectionLoopIndexes").d("hostCurrentIndex", currentIndex)
                          .d("deviceCurrentIndex", currentDeviceIndex)
                          .d("deviceKWEndIndex", endKWDeviceIndex)
@@ -364,9 +367,7 @@ void GPIOKeywordDetector::detectionLoop() {
                          .d("serverKWEndIndex", currentIndex)
                          .d("serverKWBeginIndex", beginKWServerIndex));
         }
-        oldGpioValue = gpioValue;
     }
-    m_streamReader->close();
 }
 
 }  // namespace kwd

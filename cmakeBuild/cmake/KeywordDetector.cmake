@@ -16,8 +16,7 @@
 #           -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=<path-to-sensory-lib>
 #           -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=<path-to-sensory-include-dir>
 #       -DGPIO_KEY_WORD_DETECTOR=ON
-#           -DGPIO_KEY_WORD_DETECTOR_LIB_PATH=<path-to-gpioww-lib>
-#           -DGPIO_KEY_WORD_DETECTOR_INCLUDE_DIR=<path-to-gpioww-include-dir>
+#       -DHID_KEY_WORD_DETECTOR=ON
 #
 
 option(AMAZON_KEY_WORD_DETECTOR "Enable Amazon keyword detector." OFF)
@@ -42,7 +41,7 @@ set(SENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR "" CACHE PATH "Sensory keyword detecto
 mark_as_dependent(SENSORY_KEY_WORD_DETECTOR_LIB_PATH SENSORY_KEY_WORD_DETECTOR)
 mark_as_dependent(SENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR SENSORY_KEY_WORD_DETECTOR)
 
-if(NOT AMAZON_KEY_WORD_DETECTOR AND NOT AMAZONLITE_KEY_WORD_DETECTOR AND NOT SENSORY_KEY_WORD_DETECTOR AND NOT GPIO_KEY_WORD_DETECTOR)
+if(NOT AMAZON_KEY_WORD_DETECTOR AND NOT AMAZONLITE_KEY_WORD_DETECTOR AND NOT SENSORY_KEY_WORD_DETECTOR AND NOT GPIO_KEY_WORD_DETECTOR AND NOT HID_KEY_WORD_DETECTOR)
     message("No keyword detector type specified, skipping build of keyword detector.")
     return()
 endif()
@@ -94,9 +93,16 @@ if(SENSORY_KEY_WORD_DETECTOR)
 endif()
 
 if(GPIO_KEY_WORD_DETECTOR)
-    message("Creating ${PROJECT_NAME} with keyword detector type: GPIO")
+        message("Creating ${PROJECT_NAME} with keyword detector type: GPIO")
     add_definitions(-DKWD)
     add_definitions(-DKWD_GPIO)
+    set(KWD ON)
+endif()
+
+if(HID_KEY_WORD_DETECTOR)
+        message("Creating ${PROJECT_NAME} with keyword detector type: HID")
+    add_definitions(-DKWD)
+    add_definitions(-DKWD_HID)
     set(KWD ON)
 endif()
 
