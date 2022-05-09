@@ -269,7 +269,11 @@ echo
 AUTOSTART_SESSION="avsrun"
 AUTOSTART_DIR=$HOME/.config/lxsession/LXDE-pi
 AUTOSTART=$AUTOSTART_DIR/autostart
-AVSRUN_CMD="lxterminal -t avsrun -e \"$BUILD_PATH/SampleApp/src/SampleApp $OUTPUT_CONFIG_FILE $THIRD_PARTY_PATH/alexa-rpi/models NONE 12 \$*\" &" #$* is for passing any extra arguments to Sampleapp through .avsrun-startup.sh shell script
+AVSRUN_CMD="lxterminal -t avsrun -e \"$BUILD_PATH/SampleApp/src/SampleApp $OUTPUT_CONFIG_FILE"
+if [ -n "$SENSORY_KEY_WORD_DETECTOR_FLAG" ]; then
+  AVSRUN_CMD+="$THIRD_PARTY_PATH/alexa-rpi/models NONE 12 \$*" #$* is for passing any extra arguments to Sampleapp through .avsrun-startup.sh shell script
+fi
+AVSRUN_CMD+="\" &"
 STARTUP_SCRIPT=$CURRENT_DIR/.avsrun-startup.sh
 if [ ! -f $AUTOSTART ]; then
   mkdir -p $AUTOSTART_DIR
