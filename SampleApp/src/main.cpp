@@ -91,14 +91,14 @@ int main(int argc, char* argv[]) {
             }
         }
     } else {
-#if defined(KWD_SENSORY) || defined(KWD_GPIO) || defined(KWD_HID)
+#if defined(KWD_SENSORY)
         if (argc < 3) {
             ConsolePrinter::simplePrint(
                 "USAGE: " + std::string(argv[0]) +
 #ifndef XMOS_AVS_TESTS
-                " <path_to_AlexaClientSDKConfig.json> <path_to_inputs_folder> [log_level]");
-#else
                 " <path_to_AlexaClientSDKConfig.json> <path_to_inputs_folder> [log_level] [op_point]");
+#else
+                " <path_to_AlexaClientSDKConfig.json> <path_to_inputs_folder> [log_level] [op_point] [XMOS_AVS_TESTS]");
 #endif
             return SampleAppReturnCode::ERROR;
         } else {
