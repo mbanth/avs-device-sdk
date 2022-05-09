@@ -58,7 +58,7 @@ CMAKE_PLATFORM_SPECIFIC=(-DGSTREAMER_MEDIA_PLAYER=ON -DPORTAUDIO=ON \
       -DCURL_LIBRARY=${THIRD_PARTY_PATH}/curl-${CURL_VER}/lib/.libs/libcurl.so)
 
 # Add the flags for the different keyword detectors
-if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ] && [ -z $HID_KEY_WORD_DETECTOR_FLAG ]
+if [ -n $SENSROY_KEY_WORD_DETECTOR_FLAG ]
 then
   CMAKE_PLATFORM_SPECIFIC+=(-DSENSORY_KEY_WORD_DETECTOR=ON \
         -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=$THIRD_PARTY_PATH/alexa-rpi/lib/libsnsr.a \
@@ -81,10 +81,11 @@ install_dependencies() {
 run_os_specifics() {
   build_port_audio
   build_curl
-  if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ||  -z $HID_KEY_WORD_DETECTOR_FLAG ]
+  if [ -n $SENSORY_KEY_WORD_DETECTOR_FLAG ]
   then
     build_kwd_engine
   fi
+  # the step below is not necessary for any XMOS setup
   # configure_sound
 }
 
