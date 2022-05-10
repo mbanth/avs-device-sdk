@@ -16,6 +16,10 @@ Feature enhancements, updates, and resolved issues from all releases are availab
     * add support for KWD using HID event. This will be an alternative to using the Sensory KWD with UA device.
     * add mechanism to retrieve WW indexes for HID and GPIO KWD's
 
+**XMOS-only change** - version 3:
+
+    * disable building of Sensory KWD engine for all the products
+
 ### Version 1.24.0 - June 1 2021
 Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal](https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)
 
