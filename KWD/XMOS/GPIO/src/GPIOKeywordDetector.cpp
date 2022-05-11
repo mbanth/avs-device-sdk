@@ -90,22 +90,6 @@ static const int CONTROL_CMD_ID = 0xAF;
 static const int CONTROL_CMD_PAYLOAD_LEN = 25;
 
 /**
- * Read a specific index from the payload of the USB control message
- *
- * @param payload The data returned via control message
- * @param start_index The index in the payload to start reading from
- * @return value stored in payload
- */
-static uint64_t readIndex(uint8_t* payload, int start_index) {
-    uint64_t u64value = 0;
-    // convert array of bytes into uint64_t value
-    memcpy(&u64value, &payload[start_index], sizeof(uint64_t));
-    // swap bytes of uint64_t value
-    u64value = __bswap_64(u64value);
-    return u64value;
-}
-
-/**
  * Open the I2C port connected to the device
  *
  * @return file descriptor with the connected device

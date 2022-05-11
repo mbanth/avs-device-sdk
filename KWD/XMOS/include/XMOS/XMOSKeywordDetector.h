@@ -41,7 +41,7 @@ using namespace avsCommon::sdkInterfaces;
 // A specialization of a KeyWordEngine, where a trigger comes from GPIO
 class XMOSKeywordDetector : public AbstractKeywordDetector {
 
-        private:
+protected:
     /**
      * Initializes the stream reader, sets up the GPIO, and kicks off a thread to begin processing data from
      * the stream. This function should only be called once with each new @c GPIOKeywordDetector.
@@ -54,6 +54,8 @@ class XMOSKeywordDetector : public AbstractKeywordDetector {
     virtual void detectionLoop() = 0;
     /// The main function that reads data and feeds it into the engine.
     virtual void readAudioLoop() = 0;
+
+    uint64_t readIndex(uint8_t* payload, int start_index);
 
     /// Indicates whether the internal main loop should keep running.
     std::atomic<bool> m_isShuttingDown;

@@ -33,7 +33,6 @@
 
 namespace alexaClientSDK {
 namespace kwd {
-namespace xmos {
 
 using namespace avsCommon;
 using namespace avsCommon::avs;
@@ -87,7 +86,6 @@ private:
 
    };
 
-}  // namespace xmos
 }  // namespace kwd
 }  // namespace alexaClientSDK
 
