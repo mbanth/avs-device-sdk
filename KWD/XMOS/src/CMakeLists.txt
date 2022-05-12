@@ -9,4 +9,4 @@ target_include_directories(GPIO PUBLIC
 target_link_libraries(XMOS KWD AVSCommon)
 
 # install target
-asdk_install(
+asdk_install()
