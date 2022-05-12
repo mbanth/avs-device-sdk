@@ -44,7 +44,7 @@ XMOSKeywordDetector::~XMOSKeywordDetector() {
  * @param start_index The index in the payload to start reading from
  * @return value stored in payload
  */
-uint64_t readIndex(uint8_t* payload, int start_index) {
+uint64_t XMOSKeywordDetector::readIndex(uint8_t* payload, int start_index) {
     uint64_t u64value = 0;
     // convert array of bytes into uint64_t value
     memcpy(&u64value, &payload[start_index], sizeof(uint64_t));

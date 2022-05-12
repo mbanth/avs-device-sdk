@@ -71,6 +71,12 @@ protected:
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
     /**
+     * Destructor.
+     */
+    ~XMOSKeywordDetector();
+
+
+    /**
      * Initializes the stream reader, sets up the GPIO, and kicks off a thread to begin processing data from
      * the stream. This function should only be called once with each new @c GPIOKeywordDetector.
      *
