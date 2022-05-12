@@ -192,7 +192,7 @@ GPIOKeywordDetector::GPIOKeywordDetector(
     std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
     avsCommon::utils::AudioFormat audioFormat,
     std::chrono::milliseconds msToPushPerIteration) :
-        XMOSKeywordDetector(keyWordObservers, keyWordDetectorStateObservers, stream, ((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count())) {
+        XMOSKeywordDetector(stream, keyWordObservers, keyWordDetectorStateObservers, audioFormat, msToPushPerIteration) {
 }
 
 GPIOKeywordDetector::~GPIOKeywordDetector() {
