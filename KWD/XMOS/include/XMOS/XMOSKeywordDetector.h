@@ -108,9 +108,6 @@ protected:
      */
     avsCommon::avs::AudioInputStream::Index m_beginIndexOfStreamReader;
 
-    /// The file descriptor to access I2C port
-    int m_fileDescriptor;
-
     /// Internal thread that read audio samples
     std::thread m_readAudioThread;
 

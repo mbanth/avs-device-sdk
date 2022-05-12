@@ -91,6 +91,9 @@ private:
     /// The main function that reads data and feeds it into the engine.
     void detectionLoop();
 
+    /// The file descriptor to access I2C port
+    int m_fileDescriptor;
+
 };
 }  // namespace kwd
 }  // namespace alexaClientSDK
