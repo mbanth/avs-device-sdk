@@ -69,7 +69,7 @@ static const int CONTROL_CMD_PAYLOAD_LEN = 25;
  *
  * @return 0 if device is found and handlers correctly set
  */
-uint8_t openDevice() {
+uint8_t HIDKeywordDetector::openDevice() {
     int rc = 1;
     libusb_device **devs = NULL;
     libusb_device *dev = NULL;
@@ -158,18 +158,10 @@ HIDKeywordDetector::HIDKeywordDetector(
     std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
     avsCommon::utils::AudioFormat audioFormat,
     std::chrono::milliseconds msToPushPerIteration) :
-        AbstractKeywordDetector(keyWordObservers, keyWordDetectorStateObservers),
-        m_stream{stream},
-        m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
+        XMOSKeywordDetector(stream, keyWordObservers, keyWordDetectorStateObservers, audioFormat, msToPushPerIteration) {
 }
 
 HIDKeywordDetector::~HIDKeywordDetector() {
-    m_isShuttingDown = true;
-    if (m_detectionThread.joinable())
-        m_detectionThread.join();
-    if (m_readAudioThread.joinable())
-        m_readAudioThread.join();
-
 }
 
 bool HIDKeywordDetector::init() {

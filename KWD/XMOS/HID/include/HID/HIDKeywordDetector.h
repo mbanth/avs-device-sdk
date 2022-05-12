@@ -30,7 +30,7 @@
 #include <AVSCommon/SDKInterfaces/KeyWordObserverInterface.h>
 #include <AVSCommon/SDKInterfaces/KeyWordDetectorStateObserverInterface.h>
 
-#include "KWD/AbstractKeywordDetector.h"
+#include "XMOS/XMOSKeywordDetector.h"
 
 namespace alexaClientSDK {
 namespace kwd {
@@ -40,7 +40,7 @@ using namespace avsCommon::avs;
 using namespace avsCommon::sdkInterfaces;
 
 // A specialization of a KeyWordEngine, where a trigger comes from HID
-class HIDKeywordDetector : public AbstractKeywordDetector {
+class HIDKeywordDetector : public XMOSKeywordDetector {
 public:
     /**
      * Creates a @c HIDKeywordDetector.
