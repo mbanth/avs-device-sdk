@@ -84,8 +84,13 @@ private:
         avsCommon::utils::AudioFormat audioFormat,
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
-   };
+    bool init();
 
+    /// The main function that reads data and feeds it into the engine.
+    void detectionLoop() ;
+    /// The main function that reads data and feeds it into the engine.
+    void readAudioLoop();
+};
 }  // namespace kwd
 }  // namespace alexaClientSDK
 
