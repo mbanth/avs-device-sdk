@@ -44,23 +44,6 @@ static const std::string TAG("GPIOKeywordDetector");
 // Wiring Pi pin 2 which corresponds to Physical/Board pin 13 and GPIO/BCM pin 27
 static const int GPIO_PIN = 2;
 
-/// The GPIO KW compatible AVS sample rate of 16 kHz.
-static const unsigned int GPIO_COMPATIBLE_SAMPLE_RATE = 16000;
-
-/// The GPIO KW compatible bits per sample of 16.
-static const unsigned int GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS = 16;
-
-/// The GPIO KW compatible number of channels, which is 1.
-static const unsigned int GPIO_COMPATIBLE_NUM_CHANNELS = 1;
-
-/// The GPIO KW compatible audio encoding of LPCM.
-static const avsCommon::utils::AudioFormat::Encoding GPIO_COMPATIBLE_ENCODING =
-    avsCommon::utils::AudioFormat::Encoding::LPCM;
-
-/// The GPIO KW compatible endianness which is little endian.
-static const avsCommon::utils::AudioFormat::Endianness GPIO_COMPATIBLE_ENDIANNESS =
-    avsCommon::utils::AudioFormat::Endianness::LITTLE;
-
 /// The device name of the I2C port connected to the device.
 static const char *DEVNAME = "/dev/i2c-1";
 
@@ -108,51 +91,6 @@ static uint8_t openI2CDevice() {
     return fd;
 }
 
-/**
- * Checks to see if an @c avsCommon::utils::AudioFormat is compatible with GPIO KW.
- *
- * @param audioFormat The audio format to check.
- * @return @c true if the audio format is compatible with GPIO KW and @c false otherwise.
- */
-static bool isAudioFormatCompatibleWithGPIOKW(avsCommon::utils::AudioFormat audioFormat) {
-    if (GPIO_COMPATIBLE_ENCODING != audioFormat.encoding) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleEncoding")
-                        .d("gpioKWEncoding", GPIO_COMPATIBLE_ENCODING)
-                        .d("encoding", audioFormat.encoding));
-        return false;
-    }
-    if (GPIO_COMPATIBLE_ENDIANNESS != audioFormat.endianness) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleEndianess")
-                        .d("gpioKWEndianness", GPIO_COMPATIBLE_ENDIANNESS)
-                        .d("endianness", audioFormat.endianness));
-        return false;
-    }
-    if (GPIO_COMPATIBLE_SAMPLE_RATE != audioFormat.sampleRateHz) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleSampleRate")
-                        .d("gpioKWSampleRate", GPIO_COMPATIBLE_SAMPLE_RATE)
-                        .d("sampleRate", audioFormat.sampleRateHz));
-        return false;
-    }
-    if (GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS != audioFormat.sampleSizeInBits) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleSampleSizeInBits")
-                        .d("gpioKWSampleSizeInBits", GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS)
-                        .d("sampleSizeInBits", audioFormat.sampleSizeInBits));
-        return false;
-    }
-    if (GPIO_COMPATIBLE_NUM_CHANNELS != audioFormat.numChannels) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleNumChannels")
-                        .d("gpioKWNumChannels", GPIO_COMPATIBLE_NUM_CHANNELS)
-                        .d("numChannels", audioFormat.numChannels));
-        return false;
-    }
-    return true;
-}
-
 std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
         std::shared_ptr<AudioInputStream> stream,
         avsCommon::utils::AudioFormat audioFormat,
@@ -168,10 +106,6 @@ std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
     // TODO: ACSDK-249 - Investigate cpu usage of converting bytes between endianness and if it's not too much, do it.
     if (isByteswappingRequired(audioFormat)) {
         ACSDK_ERROR(LX("createFailed").d("reason", "endianMismatch"));
-        return nullptr;
-    }
-
-    if (!isAudioFormatCompatibleWithGPIOKW(audioFormat)) {
         return nullptr;
     }
 
@@ -221,24 +155,6 @@ bool GPIOKeywordDetector::init() {
     m_readAudioThread = std::thread(&GPIOKeywordDetector::readAudioLoop, this);
     m_detectionThread = std::thread(&GPIOKeywordDetector::detectionLoop, this);
     return true;
-}
-
-void GPIOKeywordDetector::readAudioLoop() {
-    std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
-    bool didErrorOccur = false;
-
-    while (!m_isShuttingDown) {
-        readFromStream(
-            m_streamReader,
-            m_stream,
-            audioDataToPush.data(),
-            audioDataToPush.size(),
-            TIMEOUT_FOR_READ_CALLS,
-            &didErrorOccur);
-        if (didErrorOccur) {
-            m_isShuttingDown = true;
-        }
-    }
 }
 
 void GPIOKeywordDetector::detectionLoop() {

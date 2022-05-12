@@ -37,6 +37,24 @@ XMOSKeywordDetector::~XMOSKeywordDetector() {
         m_readAudioThread.join();
 }
 
+void XMOSKeywordDetector::readAudioLoop() {
+    std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
+    bool didErrorOccur = false;
+
+    while (!m_isShuttingDown) {
+        readFromStream(
+            m_streamReader,
+            m_stream,
+            audioDataToPush.data(),
+            audioDataToPush.size(),
+            TIMEOUT_FOR_READ_CALLS,
+            &didErrorOccur);
+        if (didErrorOccur) {
+            m_isShuttingDown = true;
+        }
+    }
+}
+
 /**
  * Read a specific index from the payload of the USB control message
  *

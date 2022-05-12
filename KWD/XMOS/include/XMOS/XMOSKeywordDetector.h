@@ -87,7 +87,7 @@ protected:
     /// The main function that reads data and feeds it into the engine.
     virtual void detectionLoop() = 0;
     /// The main function that reads data and feeds it into the engine.
-    virtual void readAudioLoop() = 0;
+    void readAudioLoop();
 
     uint64_t readIndex(uint8_t* payload, int start_index);
 
