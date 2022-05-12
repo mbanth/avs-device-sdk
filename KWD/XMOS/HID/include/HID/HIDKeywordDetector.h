@@ -85,53 +85,18 @@ private:
         avsCommon::utils::AudioFormat audioFormat,
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
-    /**
-     * Initializes the stream reader, sets up the HID, and kicks off a thread to begin processing data from
-     * the stream. This function should only be called once with each new @c HIDKeywordDetector.
-     *
-     * @return @c true if the engine was initialized properly and @c false otherwise.
-     */
     bool init();
 
-    /// The function that updates the audio stream.
-    void readAudioLoop();
+    uint8_t openDevice();
 
-    /// The function that waits for HID events and notifies the server
+    /// The main function that reads data and feeds it into the engine.
     void detectionLoop();
-
-    /// Indicates whether the internal main loop should keep running.
-    std::atomic<bool> m_isShuttingDown;
-
-    /// The stream of audio data.
-    const std::shared_ptr<avsCommon::avs::AudioInputStream> m_stream;
-
-    /// The reader that will be used to read audio data from the stream.
-    std::shared_ptr<avsCommon::avs::AudioInputStream::Reader> m_streamReader;
-
-    /**
-     * This serves as a reference point used when notifying observers of keyword detection indices since Sensory has no
-     * way of specifying a start index.
-     */
-    avsCommon::avs::AudioInputStream::Index m_beginIndexOfStreamReader;
-
 
     /// The device handler necessary for reading HID events
     struct libevdev *m_evdev;
 
     //The device handler necessary for sending control commands
     libusb_device_handle *m_devh;
-
-    /// Internal thread that read audio samples
-    std::thread m_readAudioThread;
-
-    /// Internal thread that monitors HID.
-    std::thread m_detectionThread;
-
-    /**
-     * The max number of samples to push into the underlying engine per iteration. This will be determined based on the
-     * sampling rate of the audio data passed in.
-     */
-    const size_t m_maxSamplesPerPush;
 };
 
 }  // namespace kwd

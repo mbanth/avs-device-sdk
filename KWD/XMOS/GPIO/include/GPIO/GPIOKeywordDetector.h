@@ -87,7 +87,7 @@ private:
     bool init();
 
     uint8_t openDevice();
-    
+
     /// The main function that reads data and feeds it into the engine.
     void detectionLoop();
 

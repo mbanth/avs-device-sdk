@@ -39,37 +39,10 @@ static const std::string TAG("HIDKeywordDetector");
  */
 #define LX(event) alexaClientSDK::avsCommon::utils::logger::LogEntry(TAG, event)
 
-/// Keyword string
-static const std::string KEYWORD_STRING = "alexa";
-
-/// The number of hertz per kilohertz.
-static const size_t HERTZ_PER_KILOHERTZ = 1000;
-
-/// The timeout to use for read calls to the SharedDataStream.
-const std::chrono::milliseconds TIMEOUT_FOR_READ_CALLS = std::chrono::milliseconds(1000);
-
-/// The HID KW compatible AVS sample rate of 16 kHz.
-static const unsigned int HID_COMPATIBLE_SAMPLE_RATE = 16000;
-
-/// The HID KW compatible bits per sample of 16.
-static const unsigned int HID_COMPATIBLE_SAMPLE_SIZE_IN_BITS = 16;
-
-/// The HID KW compatible number of channels, which is 1.
-static const unsigned int HID_COMPATIBLE_NUM_CHANNELS = 1;
-
-/// The HID KW compatible audio encoding of LPCM.
-static const avsCommon::utils::AudioFormat::Encoding HID_COMPATIBLE_ENCODING =
-    avsCommon::utils::AudioFormat::Encoding::LPCM;
-
-/// The HID KW compatible endianness which is little endian.
-static const avsCommon::utils::AudioFormat::Endianness HID_COMPATIBLE_ENDIANNESS =
-    avsCommon::utils::AudioFormat::Endianness::LITTLE;
-
 /// HID keycode to monitor:
 static const char * HID_KEY_CODE = "KEY_T";
 
 /// HID device path
-
 static const char * HID_DEVICE_PATH =  "/dev/input/event0";
 
 /// USB Product ID of XMOS device
@@ -92,34 +65,16 @@ static const int CONTROL_CMD_ID = 0xAF;
 static const int CONTROL_CMD_PAYLOAD_LEN = 25;
 
 /**
- * Read a specific index from the payload of the USB control message
- *
- * @param payload The data returned via control message
- * @param start_index The index in the payload to start reading from
- * @return value stored in payload
- */
-static uint64_t readIndex(uint8_t* payload, int start_index) {
-    uint64_t u64value = 0;
-    // convert array of bytes into uint64_t value
-    memcpy(&u64value, &payload[start_index], sizeof(uint64_t));
-    // swap bytes of uint64_t value
-    u64value = __bswap_64(u64value);
-    return u64value;
-}
-
-/**
  * Search for an USB device, open the connection and return the correct handlers
  *
- * @param evdev The device handler necessary for reading HID events
- * @param devh  The device handler necessary for sending control commands
  * @return 0 if device is found and handlers correctly set
  */
-static uint8_t openUSBDevice(libevdev** evdev, libusb_device_handle** devh) {
+uint8_t openDevice() {
     int rc = 1;
     libusb_device **devs = NULL;
     libusb_device *dev = NULL;
 
-    ACSDK_INFO(LX("openUSBDeviceOngoing")
+    ACSDK_INFO(LX("openDeviceOngoing")
                .d("HIDDevicePath", HID_DEVICE_PATH)
                .d("USBVendorID", USB_VENDOR_ID)
                .d("USBProductID", USB_PRODUCT_ID));
@@ -127,9 +82,9 @@ static uint8_t openUSBDevice(libevdev** evdev, libusb_device_handle** devh) {
     // Find USB device for reading HID events
     int fd;
     fd = open(HID_DEVICE_PATH, O_RDONLY|O_NONBLOCK);
-    rc = libevdev_new_from_fd(fd, evdev);
+    rc = libevdev_new_from_fd(fd, &m_evdev);
     if (rc < 0) {
-        ACSDK_ERROR(LX("openUSBDeviceFailed")
+        ACSDK_ERROR(LX("openDeviceFailed")
                         .d("reason", "initialiseLibevdevFailed")
                         .d("error", strerror(-rc)));
         return -1;
@@ -138,7 +93,7 @@ static uint8_t openUSBDevice(libevdev** evdev, libusb_device_handle** devh) {
     // Find USB device for sending control commands
     int ret = libusb_init(NULL);
     if (ret < 0) {
-        ACSDK_ERROR(LX("openUSBDeviceFailed").d("reason", "initialiseLibUsbFailed"));
+        ACSDK_ERROR(LX("openDeviceFailed").d("reason", "initialiseLibUsbFailed"));
         return -1;
     }
 
@@ -154,64 +109,18 @@ static uint8_t openUSBDevice(libevdev** evdev, libusb_device_handle** devh) {
     }
 
     if (dev == NULL) {
-        ACSDK_ERROR(LX("openUSBDeviceFailed").d("reason", "UsbDeviceNotFound"));
+        ACSDK_ERROR(LX("openDeviceFailed").d("reason", "UsbDeviceNotFound"));
         return -1;
     }
 
-    if (libusb_open(dev, devh) < 0) {
-        ACSDK_ERROR(LX("openUSBDeviceFailed").d("reason", "UsbDeviceNotOpened"));
+    if (libusb_open(dev, &m_devh) < 0) {
+        ACSDK_ERROR(LX("openDeviceFailed").d("reason", "UsbDeviceNotOpened"));
         return -1;
     }
 
     libusb_free_device_list(devs, 1);
-    ACSDK_INFO(LX("openUSBDeviceSuccess").d("reason", "UsbDeviceOpened"));
+    ACSDK_INFO(LX("openDeviceSuccess").d("reason", "UsbDeviceOpened"));
     return 0;
-}
-
-
-/**
- * Checks to see if an @c avsCommon::utils::AudioFormat is compatible with HID KW.
- *
- * @param audioFormat The audio format to check.
- * @return @c true if the audio format is compatible with HID KW and @c false otherwise.
- */
-static bool isAudioFormatCompatibleWithHIDKW(avsCommon::utils::AudioFormat audioFormat) {
-    if (HID_COMPATIBLE_ENCODING != audioFormat.encoding) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
-                        .d("reason", "incompatibleEncoding")
-                        .d("gpiowwEncoding", HID_COMPATIBLE_ENCODING)
-                        .d("encoding", audioFormat.encoding));
-        return false;
-    }
-    if (HID_COMPATIBLE_ENDIANNESS != audioFormat.endianness) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
-                        .d("reason", "incompatibleEndianess")
-                        .d("gpiowwEndianness", HID_COMPATIBLE_ENDIANNESS)
-                        .d("endianness", audioFormat.endianness));
-        return false;
-    }
-    if (HID_COMPATIBLE_SAMPLE_RATE != audioFormat.sampleRateHz) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
-                        .d("reason", "incompatibleSampleRate")
-                        .d("gpiowwSampleRate", HID_COMPATIBLE_SAMPLE_RATE)
-                        .d("sampleRate", audioFormat.sampleRateHz));
-        return false;
-    }
-    if (HID_COMPATIBLE_SAMPLE_SIZE_IN_BITS != audioFormat.sampleSizeInBits) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
-                        .d("reason", "incompatibleSampleSizeInBits")
-                        .d("gpiowwSampleSizeInBits", HID_COMPATIBLE_SAMPLE_SIZE_IN_BITS)
-                        .d("sampleSizeInBits", audioFormat.sampleSizeInBits));
-        return false;
-    }
-    if (HID_COMPATIBLE_NUM_CHANNELS != audioFormat.numChannels) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithHIDKWFailed")
-                        .d("reason", "incompatibleNumChannels")
-                        .d("gpiowwNumChannels", HID_COMPATIBLE_NUM_CHANNELS)
-                        .d("numChannels", audioFormat.numChannels));
-        return false;
-    }
-    return true;
 }
 
 std::unique_ptr<HIDKeywordDetector> HIDKeywordDetector::create(
@@ -229,10 +138,6 @@ std::unique_ptr<HIDKeywordDetector> HIDKeywordDetector::create(
     // TODO: ACSDK-249 - Investigate cpu usage of converting bytes between endianness and if it's not too much, do it.
     if (isByteswappingRequired(audioFormat)) {
         ACSDK_ERROR(LX("createFailed").d("reason", "endianMismatch"));
-        return nullptr;
-    }
-
-    if (!isAudioFormatCompatibleWithHIDKW(audioFormat)) {
         return nullptr;
     }
 
@@ -274,7 +179,7 @@ bool HIDKeywordDetector::init() {
         return false;
     }
 
-    if (openUSBDevice(&m_evdev, &m_devh) != 0) {
+    if (openDevice() != 0) {
         return false;
     }
 
@@ -282,24 +187,6 @@ bool HIDKeywordDetector::init() {
     m_readAudioThread = std::thread(&HIDKeywordDetector::readAudioLoop, this);
     m_detectionThread = std::thread(&HIDKeywordDetector::detectionLoop, this);
     return true;
-}
-
-void HIDKeywordDetector::readAudioLoop() {
-    std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
-    bool didErrorOccur = false;
-    while (!m_isShuttingDown) {
-        readFromStream(
-            m_streamReader,
-            m_stream,
-            audioDataToPush.data(),
-            audioDataToPush.size(),
-            TIMEOUT_FOR_READ_CALLS,
-            &didErrorOccur);
-        if (didErrorOccur) {
-            m_isShuttingDown = true;
-        }
-
-    }
 }
 
 void HIDKeywordDetector::detectionLoop() {
