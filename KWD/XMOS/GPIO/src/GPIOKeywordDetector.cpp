@@ -44,15 +44,6 @@ static const std::string TAG("GPIOKeywordDetector");
 // Wiring Pi pin 2 which corresponds to Physical/Board pin 13 and GPIO/BCM pin 27
 static const int GPIO_PIN = 2;
 
-/// Keyword string
-static const std::string KEYWORD_STRING = "alexa";
-
-/// The number of hertz per kilohertz.
-static const size_t HERTZ_PER_KILOHERTZ = 1000;
-
-/// The timeout to use for read calls to the SharedDataStream.
-const std::chrono::milliseconds TIMEOUT_FOR_READ_CALLS = std::chrono::milliseconds(1000);
-
 /// The GPIO KW compatible AVS sample rate of 16 kHz.
 static const unsigned int GPIO_COMPATIBLE_SAMPLE_RATE = 16000;
 
@@ -201,17 +192,10 @@ GPIOKeywordDetector::GPIOKeywordDetector(
     std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
     avsCommon::utils::AudioFormat audioFormat,
     std::chrono::milliseconds msToPushPerIteration) :
-        AbstractKeywordDetector(keyWordObservers, keyWordDetectorStateObservers),
-        m_stream{stream},
-        m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
+        XMOSKeywordDetector(keyWordObservers, keyWordDetectorStateObservers, stream, ((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count())) {
 }
 
 GPIOKeywordDetector::~GPIOKeywordDetector() {
-    m_isShuttingDown = true;
-    if (m_detectionThread.joinable())
-        m_detectionThread.join();
-    if (m_readAudioThread.joinable())
-        m_readAudioThread.join();
 }
 
 bool GPIOKeywordDetector::init() {

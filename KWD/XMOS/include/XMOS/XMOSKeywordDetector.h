@@ -15,8 +15,8 @@
  * permissions and limitations under the License.
  */
 
-#ifndef ALEXA_CLIENT_SDK_KWD_GPIO_INCLUDE_GPIO_GPIOKEYWORDDETECTOR_H_
-#define ALEXA_CLIENT_SDK_KWD_GPIO_INCLUDE_GPIO_GPIOKEYWORDDETECTOR_H_
+#ifndef ALEXA_CLIENT_SDK_KWD_XMOS_INCLUDE_XMOS_XMOSKEYWORDDETECTOR_H_
+#define ALEXA_CLIENT_SDK_KWD_XMOS_INCLUDE_XMOS_XMOSKEYWORDDETECTOR_H_
 
 #include <atomic>
 #include <string>
@@ -34,6 +34,15 @@
 namespace alexaClientSDK {
 namespace kwd {
 
+/// Keyword string
+static const std::string KEYWORD_STRING = "alexa";
+
+/// The number of hertz per kilohertz.
+static const size_t HERTZ_PER_KILOHERTZ = 1000;
+
+/// The timeout to use for read calls to the SharedDataStream.
+const std::chrono::milliseconds TIMEOUT_FOR_READ_CALLS = std::chrono::milliseconds(1000);
+
 using namespace avsCommon;
 using namespace avsCommon::avs;
 using namespace avsCommon::sdkInterfaces;
@@ -42,6 +51,26 @@ using namespace avsCommon::sdkInterfaces;
 class XMOSKeywordDetector : public AbstractKeywordDetector {
 
 protected:
+
+    /**
+     * Constructor.
+     *
+     * @param stream The stream of audio data. This should be formatted in LPCM encoded with 16 bits per sample and
+     * have a sample rate of 16 kHz. Additionally, the data should be in little endian format.
+     * @param audioFormat The format of the audio data located within the stream.
+     * @param keyWordObservers The observers to notify of keyword detections.
+     * @param keyWordDetectorStateObservers The observers to notify of state changes in the engine.
+     * @param msToPushPerIteration The amount of data in milliseconds to push to the cloud  at a time. This was the amount used by
+     * Sensory in example code.
+     */
+    XMOSKeywordDetector(
+        std::shared_ptr<AudioInputStream> stream,
+        std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
+        std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
+        avsCommon::utils::AudioFormat audioFormat,
+        std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
+
+    };
     /**
      * Initializes the stream reader, sets up the GPIO, and kicks off a thread to begin processing data from
      * the stream. This function should only be called once with each new @c GPIOKeywordDetector.

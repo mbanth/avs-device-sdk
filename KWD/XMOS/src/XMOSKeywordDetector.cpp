@@ -18,6 +18,25 @@
 namespace alexaClientSDK {
 namespace kwd {
 
+XMOSKeywordDetector::XMOSKeywordDetector(
+    std::shared_ptr<AudioInputStream> stream,
+    std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
+    std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
+    avsCommon::utils::AudioFormat audioFormat,
+    std::chrono::milliseconds msToPushPerIteration) :
+        AbstractKeywordDetector(keyWordObservers, keyWordDetectorStateObservers),
+        m_stream{stream},
+        m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
+}
+
+XMOSKeywordDetector::~XMOSKeywordDetector() {
+    m_isShuttingDown = true;
+    if (m_detectionThread.joinable())
+        m_detectionThread.join();
+    if (m_readAudioThread.joinable())
+        m_readAudioThread.join();
+}
+
 /**
  * Read a specific index from the payload of the USB control message
  *
