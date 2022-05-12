@@ -68,27 +68,35 @@ static const int CONTROL_CMD_PAYLOAD_LEN = 25;
  *
  * @return file descriptor with the connected device
  */
-static uint8_t openI2CDevice() {
+uint8_t GPIOKeywordDetector::openDevice() {
     int rc = 0;
-    int fd = -1;
+    m_fileDescriptor = -1;
+
+    setenv("WIRINGPI_GPIOMEM", "1", 1);
+    if (wiringPiSetup() < 0) {
+        ACSDK_ERROR(LX("openDeviceFailed").d("reason", "wiringPiSetup failed"));
+        return false;
+    }
+    pinMode(GPIO_PIN, INPUT);
+
     // Open port for reading and writing
-    if ((fd = open(DEVNAME, O_RDWR)) < 0) {
-        ACSDK_ERROR(LX("openI2CDeviceFailed")
+    if ((m_fileDescriptor = open(DEVNAME, O_RDWR)) < 0) {
+        ACSDK_ERROR(LX("openDeviceFailed")
                     .d("reason", "openFailed"));
         perror( "" );
         return -1;
     }
     // Set the port options and set the address of the device we wish to speak to
-    if ((rc = ioctl(fd, I2C_SLAVE, I2C_ADDRESS)) < 0) {
-        ACSDK_ERROR(LX("openI2CDeviceFailed")
+    if ((rc = ioctl(m_fileDescriptor, I2C_SLAVE, I2C_ADDRESS)) < 0) {
+        ACSDK_ERROR(LX("openDeviceFailed")
                     .d("reason", "setI2CConfigurationFailed"));
         perror( "" );
         return -1;
     }
 
-    ACSDK_INFO(LX("openI2CDeviceSuccess").d("port", I2C_ADDRESS));
+    ACSDK_INFO(LX("openDeviceSuccess").d("port", I2C_ADDRESS));
 
-    return fd;
+    return 0;
 }
 
 std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
@@ -133,15 +141,8 @@ GPIOKeywordDetector::~GPIOKeywordDetector() {
 }
 
 bool GPIOKeywordDetector::init() {
-    setenv("WIRINGPI_GPIOMEM", "1", 1);
-    if (wiringPiSetup() < 0) {
-        ACSDK_ERROR(LX("initFailed").d("reason", "wiringPiSetup failed"));
-        return false;
-    }
-    pinMode(GPIO_PIN, INPUT);
-
-    if ((m_fileDescriptor = openI2CDevice())<0) {
-        ACSDK_ERROR(LX("detectionLoopFailed").d("reason", "openI2CDeviceFailed"));
+    if (openDevice()<0) {
+        ACSDK_ERROR(LX("initFailed").d("reason", "openDeviceFailed"));
         return false;
     }
 

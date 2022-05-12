@@ -84,6 +84,8 @@ protected:
      */
     virtual bool init() = 0;
 
+    virtual uint8_t openDevice() = 0; 
+
     /// The main function that reads data and feeds it into the engine.
     virtual void detectionLoop() = 0;
     /// The main function that reads data and feeds it into the engine.

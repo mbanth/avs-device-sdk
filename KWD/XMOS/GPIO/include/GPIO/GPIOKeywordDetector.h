@@ -86,10 +86,11 @@ private:
 
     bool init();
 
+    uint8_t openDevice();
+    
     /// The main function that reads data and feeds it into the engine.
-    void detectionLoop() ;
-    /// The main function that reads data and feeds it into the engine.
-    void readAudioLoop();
+    void detectionLoop();
+
 };
 }  // namespace kwd
 }  // namespace alexaClientSDK
