@@ -88,9 +88,17 @@ protected:
 
     /// The main function that reads data and feeds it into the engine.
     virtual void detectionLoop() = 0;
+
     /// The main function that reads data and feeds it into the engine.
     void readAudioLoop();
 
+    /**
+     * Read a specific index from the payload of the USB control message
+     *
+     * @param payload The data returned via control message
+     * @param start_index The index in the payload to start reading from
+     * @return value stored in payload
+    */
     uint64_t readIndex(uint8_t* payload, int start_index);
 
     /// Indicates whether the internal main loop should keep running.
@@ -101,12 +109,6 @@ protected:
 
     /// The reader that will be used to read audio data from the stream.
     std::shared_ptr<avsCommon::avs::AudioInputStream::Reader> m_streamReader;
-
-    /**
-     * This serves as a reference point used when notifying observers of keyword detection indices since Sensory has no
-     * way of specifying a start index.
-     */
-    avsCommon::avs::AudioInputStream::Index m_beginIndexOfStreamReader;
 
     /// Internal thread that read audio samples
     std::thread m_readAudioThread;

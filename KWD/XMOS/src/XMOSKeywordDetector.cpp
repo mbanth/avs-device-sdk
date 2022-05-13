@@ -55,13 +55,6 @@ void XMOSKeywordDetector::readAudioLoop() {
     }
 }
 
-/**
- * Read a specific index from the payload of the USB control message
- *
- * @param payload The data returned via control message
- * @param start_index The index in the payload to start reading from
- * @return value stored in payload
- */
 uint64_t XMOSKeywordDetector::readIndex(uint8_t* payload, int start_index) {
     uint64_t u64value = 0;
     // convert array of bytes into uint64_t value

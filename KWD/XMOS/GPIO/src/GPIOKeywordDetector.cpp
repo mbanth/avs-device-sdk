@@ -159,7 +159,6 @@ bool GPIOKeywordDetector::init() {
 }
 
 void GPIOKeywordDetector::detectionLoop() {
-    m_beginIndexOfStreamReader = m_streamReader->tell();
     notifyKeyWordDetectorStateObservers(KeyWordDetectorStateObserverInterface::KeyWordDetectorState::ACTIVE);
     int oldGpioValue = HIGH;
 
