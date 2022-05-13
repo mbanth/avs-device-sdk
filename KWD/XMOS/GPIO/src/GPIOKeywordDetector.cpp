@@ -1,4 +1,4 @@
-// Copyright (c) 2021 XMOS LIMITED. This Software is subject to the terms of the
+// Copyright (c) 2021-2022 XMOS LIMITED. This Software is subject to the terms of the
 // XMOS Public License: Version 1
 /*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -59,16 +59,11 @@ static const int CONTROL_RESOURCE_ID = 0xE0;
 /// The command ID of the XMOS control command.
 static const int CONTROL_CMD_ID = 0xAF;
 
-/// The lenght of the payload of the XMOS control command
+/// The length of the payload of the XMOS control command
 /// one control byte plus 3 uint64_t values
 static const int CONTROL_CMD_PAYLOAD_LEN = 25;
 
-/**
- * Open the I2C port connected to the device
- *
- * @return file descriptor with the connected device
- */
-uint8_t GPIOKeywordDetector::openDevice() {
+bool GPIOKeywordDetector::openDevice() {
     int rc = 0;
     m_fileDescriptor = -1;
 
@@ -84,19 +79,19 @@ uint8_t GPIOKeywordDetector::openDevice() {
         ACSDK_ERROR(LX("openDeviceFailed")
                     .d("reason", "openFailed"));
         perror( "" );
-        return -1;
+        return false;
     }
     // Set the port options and set the address of the device we wish to speak to
     if ((rc = ioctl(m_fileDescriptor, I2C_SLAVE, I2C_ADDRESS)) < 0) {
         ACSDK_ERROR(LX("openDeviceFailed")
                     .d("reason", "setI2CConfigurationFailed"));
         perror( "" );
-        return -1;
+        return false;
     }
 
     ACSDK_INFO(LX("openDeviceSuccess").d("port", I2C_ADDRESS));
 
-    return 0;
+    return true;
 }
 
 std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
@@ -141,7 +136,7 @@ GPIOKeywordDetector::~GPIOKeywordDetector() {
 }
 
 bool GPIOKeywordDetector::init() {
-    if (openDevice()<0) {
+    if (!openDevice()) {
         ACSDK_ERROR(LX("initFailed").d("reason", "openDeviceFailed"));
         return false;
     }

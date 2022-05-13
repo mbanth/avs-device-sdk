@@ -1,4 +1,4 @@
-// Copyright (c) 2021 XMOS LIMITED. This Software is subject to the terms of the
+// Copyright (c) 2021-2022 XMOS LIMITED. This Software is subject to the terms of the
 // XMOS Public License: Version 1
 /*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -84,11 +84,22 @@ private:
         avsCommon::utils::AudioFormat audioFormat,
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
+    /**
+     * Initializes the stream reader, sets up the GPIO pin, and kicks off threads to begin processing data from
+     * the stream. This function should only be called once with each new @c GPIOKeywordDetector.
+     *
+     * @return @c true if the engine was initialized properly and @c false otherwise.
+     */
     bool init();
 
-    uint8_t openDevice();
+    /**
+     * Open the I2C port connected to the device
+     *
+     * @return @c true if file descriptor for the connected device is correctly set
+    */
+    bool openDevice();
 
-    /// The main function that reads data and feeds it into the engine.
+    /// Re-declaration of base class member function
     void detectionLoop();
 
     /// The file descriptor to access I2C port

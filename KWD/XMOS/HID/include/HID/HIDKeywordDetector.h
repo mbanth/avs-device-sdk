@@ -1,4 +1,4 @@
-// Copyright (c) 2021 XMOS LIMITED. This Software is subject to the terms of the
+// Copyright (c) 2021-2022 XMOS LIMITED. This Software is subject to the terms of the
 // XMOS Public License: Version 1
 /*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -85,11 +85,22 @@ private:
         avsCommon::utils::AudioFormat audioFormat,
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
+    /**
+     * Initializes the stream reader, sets up the USB connection, and kicks off threads to begin processing data from
+     * the stream. This function should only be called once with each new @c HIDKeywordDetector.
+     *
+     * @return @c true if the engine was initialized properly and @c false otherwise.
+     */
     bool init();
 
-    uint8_t openDevice();
+    /**
+     * Search for an USB device, open the connection and return the correct handlers
+     *
+     * @return @c true if device is found and handlers are correctly set
+    */
+    bool openDevice();
 
-    /// The main function that reads data and feeds it into the engine.
+    /// Declaration of function from base class
     void detectionLoop();
 
     /// The device handler necessary for reading HID events

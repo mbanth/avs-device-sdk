@@ -1,4 +1,4 @@
-// Copyright (c) 2021 XMOS LIMITED. This Software is subject to the terms of the
+// Copyright (c) 2022 XMOS LIMITED. This Software is subject to the terms of the
 // XMOS Public License: Version 1
 /*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -75,16 +75,11 @@ protected:
      */
     ~XMOSKeywordDetector();
 
-
-    /**
-     * Initializes the stream reader, sets up the GPIO, and kicks off a thread to begin processing data from
-     * the stream. This function should only be called once with each new @c GPIOKeywordDetector.
-     *
-     * @return @c true if the engine was initialized properly and @c false otherwise.
-     */
+    /// Function to initialize the XMOS KWD
     virtual bool init() = 0;
 
-    virtual uint8_t openDevice() = 0; 
+    /// Function to establish a connection with an XMOS device
+    virtual bool openDevice() = 0; 
 
     /// The main function that reads data and feeds it into the engine.
     virtual void detectionLoop() = 0;

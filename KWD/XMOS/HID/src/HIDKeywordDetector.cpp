@@ -60,16 +60,11 @@ static const int CONTROL_RESOURCE_ID = 0xE0;
 /// The command ID of the XMOS control command.
 static const int CONTROL_CMD_ID = 0xAF;
 
-/// The lenght of the payload of the XMOS control command
+/// The length of the payload of the XMOS control command
 /// one control byte plus 3 uint64_t values
 static const int CONTROL_CMD_PAYLOAD_LEN = 25;
 
-/**
- * Search for an USB device, open the connection and return the correct handlers
- *
- * @return 0 if device is found and handlers correctly set
- */
-uint8_t HIDKeywordDetector::openDevice() {
+bool HIDKeywordDetector::openDevice() {
     int rc = 1;
     libusb_device **devs = NULL;
     libusb_device *dev = NULL;
@@ -87,14 +82,14 @@ uint8_t HIDKeywordDetector::openDevice() {
         ACSDK_ERROR(LX("openDeviceFailed")
                         .d("reason", "initialiseLibevdevFailed")
                         .d("error", strerror(-rc)));
-        return -1;
+        return false;
     }
 
     // Find USB device for sending control commands
     int ret = libusb_init(NULL);
     if (ret < 0) {
         ACSDK_ERROR(LX("openDeviceFailed").d("reason", "initialiseLibUsbFailed"));
-        return -1;
+        return false;
     }
 
     int num_dev = libusb_get_device_list(NULL, &devs);
@@ -110,17 +105,17 @@ uint8_t HIDKeywordDetector::openDevice() {
 
     if (dev == NULL) {
         ACSDK_ERROR(LX("openDeviceFailed").d("reason", "UsbDeviceNotFound"));
-        return -1;
+        return false;
     }
 
     if (libusb_open(dev, &m_devh) < 0) {
         ACSDK_ERROR(LX("openDeviceFailed").d("reason", "UsbDeviceNotOpened"));
-        return -1;
+        return false;
     }
 
     libusb_free_device_list(devs, 1);
     ACSDK_INFO(LX("openDeviceSuccess").d("reason", "UsbDeviceOpened"));
-    return 0;
+    return true;
 }
 
 std::unique_ptr<HIDKeywordDetector> HIDKeywordDetector::create(
@@ -171,7 +166,7 @@ bool HIDKeywordDetector::init() {
         return false;
     }
 
-    if (openDevice() != 0) {
+    if (!openDevice()) {
         return false;
     }
 
