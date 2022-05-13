@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <chrono>
+#include <dirent.h>
 
 #include <AVSCommon/Utils/Logger/Logger.h>
 
@@ -42,8 +43,11 @@ static const std::string TAG("HIDKeywordDetector");
 /// HID keycode to monitor:
 static const char * HID_KEY_CODE = "KEY_T";
 
-/// HID device path
-static const char * HID_DEVICE_PATH =  "/dev/input/event0";
+/// HID device directory path
+static const std::string HID_DEVICE_DIR_PATH =  "/dev/input/";
+
+/// HID device name
+static const std::string HID_DEVICE_NAME = "XMOS XVF3615 Voice Processor Keyboard";
 
 /// USB Product ID of XMOS device
 static const int USB_VENDOR_ID = 0x20B1;
@@ -70,21 +74,37 @@ bool HIDKeywordDetector::openDevice() {
     libusb_device *dev = NULL;
 
     ACSDK_INFO(LX("openDeviceOngoing")
-               .d("HIDDevicePath", HID_DEVICE_PATH)
+               .d("HIDDeviceName", HID_DEVICE_NAME)
                .d("USBVendorID", USB_VENDOR_ID)
                .d("USBProductID", USB_PRODUCT_ID));
 
     // Find USB device for reading HID events
-    int fd;
-    fd = open(HID_DEVICE_PATH, O_RDONLY|O_NONBLOCK);
-    rc = libevdev_new_from_fd(fd, &m_evdev);
-    if (rc < 0) {
-        ACSDK_ERROR(LX("openDeviceFailed")
-                        .d("reason", "initialiseLibevdevFailed")
-                        .d("error", strerror(-rc)));
-        return false;
-    }
+    int fd = -1;
+    DIR *dir;
+    struct dirent *entry;
 
+    //search all files in directory
+    dir = opendir(HID_DEVICE_DIR_PATH.c_str()); 
+    if (dir) {
+        while ((entry = readdir(dir)) != NULL) {
+            std::string file_path(entry->d_name);
+            fd = open((HID_DEVICE_DIR_PATH+file_path).c_str(), O_RDONLY|O_NONBLOCK);
+
+            // Do not check if command is successful, as the entries reported by readdir() are not all devices
+            rc = libevdev_new_from_fd(fd, &m_evdev);
+            if (!rc) {
+                if (libevdev_get_name(m_evdev)==HID_DEVICE_NAME) {
+                    ACSDK_INFO(LX("openDeviceSuccess").d("reason", "Found HID device").d("path", HID_DEVICE_DIR_PATH+file_path));
+                    break;
+                }
+            }
+            fd = -1;
+        }
+        closedir(dir); //close directory
+    }
+    if (fd==-1) {
+        ACSDK_ERROR(LX("openDeviceFailed").d("reason", "HidDeviceNotFound"));
+    }
     // Find USB device for sending control commands
     int ret = libusb_init(NULL);
     if (ret < 0) {
@@ -187,6 +207,7 @@ void HIDKeywordDetector::detectionLoop() {
         auto currentIndex = m_streamReader->tell();
         struct input_event ev;
         rc = libevdev_next_event(m_evdev, LIBEVDEV_READ_FLAG_NORMAL, &ev);
+	  
         // wait for HID_KEY_CODE true event
         if (rc == 0 && strcmp(libevdev_event_type_get_name(ev.type), "EV_KEY")==0 && \
             strcmp(libevdev_event_code_get_name(ev.type, ev.code), HID_KEY_CODE)==0 && \
