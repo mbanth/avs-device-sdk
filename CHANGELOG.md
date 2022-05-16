@@ -18,6 +18,7 @@ Feature enhancements, updates, and resolved issues from all releases are availab
 
 **XMOS-only change** - version 3:
 
+    * disable building of Sensory KWD engine for all the products
     * refactor and tidy up XMOS keyword detector classes
 
 ### Version 1.24.0 - June 1 2021
