@@ -20,6 +20,16 @@
 namespace alexaClientSDK {
 namespace kwd {
 
+/// String to identify log entries originating from this file.
+static const std::string TAG("XMOSKeywordDetector");
+
+/**
+ * Create a LogEntry using this file's TAG and the specified event string.
+ *
+ * @param The event string for this @c LogEntry.
+ */
+#define LX(event) alexaClientSDK::avsCommon::utils::logger::LogEntry(TAG, event)
+
 XMOSKeywordDetector::XMOSKeywordDetector(
     std::shared_ptr<AudioInputStream> stream,
     std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
@@ -39,7 +49,7 @@ XMOSKeywordDetector::~XMOSKeywordDetector() {
         m_readAudioThread.join();
 }
 
-bool GPIOKeywordDetector::init() {
+bool XMOSKeywordDetector::init() {
     if (!openDevice()) {
         ACSDK_ERROR(LX("initFailed").d("reason", "openDeviceFailed"));
         return false;

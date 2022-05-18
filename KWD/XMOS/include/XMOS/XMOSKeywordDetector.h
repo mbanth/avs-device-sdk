@@ -47,7 +47,7 @@ using namespace avsCommon;
 using namespace avsCommon::avs;
 using namespace avsCommon::sdkInterfaces;
 
-// A specialization of a KeyWordEngine, where a trigger comes from GPIO
+// A specialization of a KeyWordEngine, where a trigger comes from an external XMOS device
 class XMOSKeywordDetector : public AbstractKeywordDetector {
 
 protected:
@@ -113,7 +113,7 @@ protected:
     /// Internal thread that read audio samples
     std::thread m_readAudioThread;
 
-    /// Internal thread that monitors GPIO pin.
+    /// Internal thread that monitors the external XMOS device
     std::thread m_detectionThread;
 
     /**
@@ -126,4 +126,4 @@ protected:
 }  // namespace kwd
 }  // namespace alexaClientSDK
 
-#endif  // ALEXA_CLIENT_SDK_KWD_GPIO_INCLUDE_GPIO_GPIOKEYWORDDETECTOR_H_
+#endif  // ALEXA_CLIENT_SDK_KWD_XMOS_INCLUDE_XMOS_XMOSKEYWORDDETECTOR_H_
