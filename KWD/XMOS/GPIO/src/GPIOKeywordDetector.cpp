@@ -136,21 +136,11 @@ GPIOKeywordDetector::~GPIOKeywordDetector() {
 }
 
 bool GPIOKeywordDetector::init() {
-    if (!openDevice()) {
-        ACSDK_ERROR(LX("initFailed").d("reason", "openDeviceFailed"));
-        return false;
+    if (XMOSKeywordDetector::init()) {
+        m_detectionThread = std::thread(&GPIOKeywordDetector::detectionLoop, this);
+        return true;
     }
-
-    m_streamReader = m_stream->createReader(AudioInputStream::Reader::Policy::BLOCKING);
-    if (!m_streamReader) {
-        ACSDK_ERROR(LX("initFailed").d("reason", "createStreamReaderFailed"));
-        return false;
-    }
-
-    m_isShuttingDown = false;
-    m_readAudioThread = std::thread(&GPIOKeywordDetector::readAudioLoop, this);
-    m_detectionThread = std::thread(&GPIOKeywordDetector::detectionLoop, this);
-    return true;
+    return false;
 }
 
 void GPIOKeywordDetector::detectionLoop() {
@@ -172,7 +162,7 @@ void GPIOKeywordDetector::detectionLoop() {
             std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
             ACSDK_DEBUG0(LX("detectionLoopGPIOevent").d("absoluteElapsedTime (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - start_time).count()));
 
-            // Check if this is not the first HID event
+            // Check if this is not the first GPIO event
             if (prev_time != std::chrono::steady_clock::time_point()) {
                 ACSDK_DEBUG0(LX("detectionLoopGPIOevent").d("elapsedTimeFromPreviousEvent (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - prev_time).count()));
             }

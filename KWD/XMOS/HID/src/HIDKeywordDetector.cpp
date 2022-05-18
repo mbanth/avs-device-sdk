@@ -179,21 +179,13 @@ HIDKeywordDetector::HIDKeywordDetector(
 HIDKeywordDetector::~HIDKeywordDetector() {
 }
 
+
 bool HIDKeywordDetector::init() {
-    m_streamReader = m_stream->createReader(AudioInputStream::Reader::Policy::BLOCKING);
-    if (!m_streamReader) {
-        ACSDK_ERROR(LX("initFailed").d("reason", "createStreamReaderFailed"));
-        return false;
+    if (XMOSKeywordDetector::init()) {
+        m_detectionThread = std::thread(&HIDKeywordDetector::detectionLoop, this);
+        return true;
     }
-
-    if (!openDevice()) {
-        return false;
-    }
-
-    m_isShuttingDown = false;
-    m_readAudioThread = std::thread(&HIDKeywordDetector::readAudioLoop, this);
-    m_detectionThread = std::thread(&HIDKeywordDetector::detectionLoop, this);
-    return true;
+    return false;
 }
 
 void HIDKeywordDetector::detectionLoop() {
@@ -207,7 +199,7 @@ void HIDKeywordDetector::detectionLoop() {
         auto currentIndex = m_streamReader->tell();
         struct input_event ev;
         rc = libevdev_next_event(m_evdev, LIBEVDEV_READ_FLAG_NORMAL, &ev);
-	  
+
         // wait for HID_KEY_CODE true event
         if (rc == 0 && strcmp(libevdev_event_type_get_name(ev.type), "EV_KEY")==0 && \
             strcmp(libevdev_event_code_get_name(ev.type, ev.code), HID_KEY_CODE)==0 && \

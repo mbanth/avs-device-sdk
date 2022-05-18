@@ -39,6 +39,23 @@ XMOSKeywordDetector::~XMOSKeywordDetector() {
         m_readAudioThread.join();
 }
 
+bool GPIOKeywordDetector::init() {
+    if (!openDevice()) {
+        ACSDK_ERROR(LX("initFailed").d("reason", "openDeviceFailed"));
+        return false;
+    }
+
+    m_streamReader = m_stream->createReader(AudioInputStream::Reader::Policy::BLOCKING);
+    if (!m_streamReader) {
+        ACSDK_ERROR(LX("initFailed").d("reason", "createStreamReaderFailed"));
+        return false;
+    }
+
+    m_isShuttingDown = false;
+    m_readAudioThread = std::thread(&XMOSKeywordDetector::readAudioLoop, this);
+    return true;
+}
+
 void XMOSKeywordDetector::readAudioLoop() {
     std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
     bool didErrorOccur = false;

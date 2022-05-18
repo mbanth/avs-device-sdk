@@ -75,8 +75,13 @@ protected:
      */
     ~XMOSKeywordDetector();
 
-    /// Function to initialize the XMOS KWD
-    virtual bool init() = 0;
+    /**
+     * Initializes the stream reader, sets up the connection to the device, and kicks off thread to begin reading 
+     * the audio stream. This function should only be called once with each new @c XMOSKeywordDetector.
+     *
+     * @return @c true if the engine was initialized properly and @c false otherwise.
+     */
+    bool init();
 
     /// Function to establish a connection with an XMOS device
     virtual bool openDevice() = 0; 
