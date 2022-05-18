@@ -11,11 +11,11 @@ if(SENSORY_KEY_WORD_DETECTOR)
 endif()
 
 if(HID_KEY_WORD_DETECTOR)
-    target_link_libraries(KeywordDetectorProvider HID)
+    target_link_libraries(KeywordDetectorProvider XMOS HID)
 endif()
 
 if(GPIO_KEY_WORD_DETECTOR)
-    target_link_libraries(KeywordDetectorProvider GPIO)
+    target_link_libraries(KeywordDetectorProvider XMOS GPIO)
 endif()
 
 # install target
