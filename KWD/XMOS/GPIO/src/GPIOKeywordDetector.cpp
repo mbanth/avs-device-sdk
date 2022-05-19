@@ -1,4 +1,4 @@
-// Copyright (c) 2021 XMOS LIMITED. This Software is subject to the terms of the
+// Copyright (c) 2021-2022 XMOS LIMITED. This Software is subject to the terms of the
 // XMOS Public License: Version 1
 /*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -44,32 +44,6 @@ static const std::string TAG("GPIOKeywordDetector");
 // Wiring Pi pin 2 which corresponds to Physical/Board pin 13 and GPIO/BCM pin 27
 static const int GPIO_PIN = 2;
 
-/// Keyword string
-static const std::string KEYWORD_STRING = "alexa";
-
-/// The number of hertz per kilohertz.
-static const size_t HERTZ_PER_KILOHERTZ = 1000;
-
-/// The timeout to use for read calls to the SharedDataStream.
-const std::chrono::milliseconds TIMEOUT_FOR_READ_CALLS = std::chrono::milliseconds(1000);
-
-/// The GPIO KW compatible AVS sample rate of 16 kHz.
-static const unsigned int GPIO_COMPATIBLE_SAMPLE_RATE = 16000;
-
-/// The GPIO KW compatible bits per sample of 16.
-static const unsigned int GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS = 16;
-
-/// The GPIO KW compatible number of channels, which is 1.
-static const unsigned int GPIO_COMPATIBLE_NUM_CHANNELS = 1;
-
-/// The GPIO KW compatible audio encoding of LPCM.
-static const avsCommon::utils::AudioFormat::Encoding GPIO_COMPATIBLE_ENCODING =
-    avsCommon::utils::AudioFormat::Encoding::LPCM;
-
-/// The GPIO KW compatible endianness which is little endian.
-static const avsCommon::utils::AudioFormat::Endianness GPIO_COMPATIBLE_ENDIANNESS =
-    avsCommon::utils::AudioFormat::Endianness::LITTLE;
-
 /// The device name of the I2C port connected to the device.
 static const char *DEVNAME = "/dev/i2c-1";
 
@@ -85,96 +59,38 @@ static const int CONTROL_RESOURCE_ID = 0xE0;
 /// The command ID of the XMOS control command.
 static const int CONTROL_CMD_ID = 0xAF;
 
-/// The lenght of the payload of the XMOS control command
+/// The length of the payload of the XMOS control command
 /// one control byte plus 3 uint64_t values
 static const int CONTROL_CMD_PAYLOAD_LEN = 25;
 
-/**
- * Read a specific index from the payload of the USB control message
- *
- * @param payload The data returned via control message
- * @param start_index The index in the payload to start reading from
- * @return value stored in payload
- */
-static uint64_t readIndex(uint8_t* payload, int start_index) {
-    uint64_t u64value = 0;
-    // convert array of bytes into uint64_t value
-    memcpy(&u64value, &payload[start_index], sizeof(uint64_t));
-    // swap bytes of uint64_t value
-    u64value = __bswap_64(u64value);
-    return u64value;
-}
-
-/**
- * Open the I2C port connected to the device
- *
- * @return file descriptor with the connected device
- */
-static uint8_t openI2CDevice() {
+bool GPIOKeywordDetector::openDevice() {
     int rc = 0;
-    int fd = -1;
+    m_fileDescriptor = -1;
+
+    setenv("WIRINGPI_GPIOMEM", "1", 1);
+    if (wiringPiSetup() < 0) {
+        ACSDK_ERROR(LX("openDeviceFailed").d("reason", "wiringPiSetup failed"));
+        return false;
+    }
+    pinMode(GPIO_PIN, INPUT);
+
     // Open port for reading and writing
-    if ((fd = open(DEVNAME, O_RDWR)) < 0) {
-        ACSDK_ERROR(LX("openI2CDeviceFailed")
+    if ((m_fileDescriptor = open(DEVNAME, O_RDWR)) < 0) {
+        ACSDK_ERROR(LX("openDeviceFailed")
                     .d("reason", "openFailed"));
         perror( "" );
-        return -1;
+        return false;
     }
     // Set the port options and set the address of the device we wish to speak to
-    if ((rc = ioctl(fd, I2C_SLAVE, I2C_ADDRESS)) < 0) {
-        ACSDK_ERROR(LX("openI2CDeviceFailed")
+    if ((rc = ioctl(m_fileDescriptor, I2C_SLAVE, I2C_ADDRESS)) < 0) {
+        ACSDK_ERROR(LX("openDeviceFailed")
                     .d("reason", "setI2CConfigurationFailed"));
         perror( "" );
-        return -1;
+        return false;
     }
 
-    ACSDK_INFO(LX("openI2CDeviceSuccess").d("port", I2C_ADDRESS));
+    ACSDK_INFO(LX("openDeviceSuccess").d("port", I2C_ADDRESS));
 
-    return fd;
-}
-
-/**
- * Checks to see if an @c avsCommon::utils::AudioFormat is compatible with GPIO KW.
- *
- * @param audioFormat The audio format to check.
- * @return @c true if the audio format is compatible with GPIO KW and @c false otherwise.
- */
-static bool isAudioFormatCompatibleWithGPIOKW(avsCommon::utils::AudioFormat audioFormat) {
-    if (GPIO_COMPATIBLE_ENCODING != audioFormat.encoding) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleEncoding")
-                        .d("gpioKWEncoding", GPIO_COMPATIBLE_ENCODING)
-                        .d("encoding", audioFormat.encoding));
-        return false;
-    }
-    if (GPIO_COMPATIBLE_ENDIANNESS != audioFormat.endianness) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleEndianess")
-                        .d("gpioKWEndianness", GPIO_COMPATIBLE_ENDIANNESS)
-                        .d("endianness", audioFormat.endianness));
-        return false;
-    }
-    if (GPIO_COMPATIBLE_SAMPLE_RATE != audioFormat.sampleRateHz) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleSampleRate")
-                        .d("gpioKWSampleRate", GPIO_COMPATIBLE_SAMPLE_RATE)
-                        .d("sampleRate", audioFormat.sampleRateHz));
-        return false;
-    }
-    if (GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS != audioFormat.sampleSizeInBits) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleSampleSizeInBits")
-                        .d("gpioKWSampleSizeInBits", GPIO_COMPATIBLE_SAMPLE_SIZE_IN_BITS)
-                        .d("sampleSizeInBits", audioFormat.sampleSizeInBits));
-        return false;
-    }
-    if (GPIO_COMPATIBLE_NUM_CHANNELS != audioFormat.numChannels) {
-        ACSDK_ERROR(LX("isAudioFormatCompatibleWithGPIOKWFailed")
-                        .d("reason", "incompatibleNumChannels")
-                        .d("gpioKWNumChannels", GPIO_COMPATIBLE_NUM_CHANNELS)
-                        .d("numChannels", audioFormat.numChannels));
-        return false;
-    }
     return true;
 }
 
@@ -196,10 +112,6 @@ std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
         return nullptr;
     }
 
-    if (!isAudioFormatCompatibleWithGPIOKW(audioFormat)) {
-        return nullptr;
-    }
-
     std::unique_ptr<GPIOKeywordDetector> detector(new GPIOKeywordDetector(
         stream, keyWordObservers, keyWordDetectorStateObservers, audioFormat));
 
@@ -217,64 +129,21 @@ GPIOKeywordDetector::GPIOKeywordDetector(
     std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
     avsCommon::utils::AudioFormat audioFormat,
     std::chrono::milliseconds msToPushPerIteration) :
-        AbstractKeywordDetector(keyWordObservers, keyWordDetectorStateObservers),
-        m_stream{stream},
-        m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
+        XMOSKeywordDetector(stream, keyWordObservers, keyWordDetectorStateObservers, audioFormat, msToPushPerIteration) {
 }
 
 GPIOKeywordDetector::~GPIOKeywordDetector() {
-    m_isShuttingDown = true;
-    if (m_detectionThread.joinable())
-        m_detectionThread.join();
-    if (m_readAudioThread.joinable())
-        m_readAudioThread.join();
 }
 
 bool GPIOKeywordDetector::init() {
-    setenv("WIRINGPI_GPIOMEM", "1", 1);
-    if (wiringPiSetup() < 0) {
-        ACSDK_ERROR(LX("initFailed").d("reason", "wiringPiSetup failed"));
-        return false;
+    if (XMOSKeywordDetector::init()) {
+        m_detectionThread = std::thread(&GPIOKeywordDetector::detectionLoop, this);
+        return true;
     }
-    pinMode(GPIO_PIN, INPUT);
-
-    if ((m_fileDescriptor = openI2CDevice())<0) {
-        ACSDK_ERROR(LX("detectionLoopFailed").d("reason", "openI2CDeviceFailed"));
-        return false;
-    }
-
-    m_streamReader = m_stream->createReader(AudioInputStream::Reader::Policy::BLOCKING);
-    if (!m_streamReader) {
-        ACSDK_ERROR(LX("initFailed").d("reason", "createStreamReaderFailed"));
-        return false;
-    }
-
-    m_isShuttingDown = false;
-    m_readAudioThread = std::thread(&GPIOKeywordDetector::readAudioLoop, this);
-    m_detectionThread = std::thread(&GPIOKeywordDetector::detectionLoop, this);
-    return true;
-}
-
-void GPIOKeywordDetector::readAudioLoop() {
-    std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
-    bool didErrorOccur = false;
-
-    while (!m_isShuttingDown) {
-        readFromStream(
-            m_streamReader,
-            m_stream,
-            audioDataToPush.data(),
-            audioDataToPush.size(),
-            TIMEOUT_FOR_READ_CALLS,
-            &didErrorOccur);
-        if (didErrorOccur) {
-            m_isShuttingDown = true;
-        }
-    }
+    return false;
 }
 
 void GPIOKeywordDetector::detectionLoop() {
-    m_beginIndexOfStreamReader = m_streamReader->tell();
     notifyKeyWordDetectorStateObservers(KeyWordDetectorStateObserverInterface::KeyWordDetectorState::ACTIVE);
     int oldGpioValue = HIGH;
 
@@ -293,7 +162,7 @@ void GPIOKeywordDetector::detectionLoop() {
             std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
             ACSDK_DEBUG0(LX("detectionLoopGPIOevent").d("absoluteElapsedTime (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - start_time).count()));
 
-            // Check if this is not the first HID event
+            // Check if this is not the first GPIO event
             if (prev_time != std::chrono::steady_clock::time_point()) {
                 ACSDK_DEBUG0(LX("detectionLoopGPIOevent").d("elapsedTimeFromPreviousEvent (ms)", std::chrono::duration_cast<std::chrono::milliseconds> (current_time - prev_time).count()));
             }

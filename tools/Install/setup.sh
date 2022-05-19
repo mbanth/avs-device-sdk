@@ -66,6 +66,7 @@ PATH_FILES_DIR="$HOME/.config/"
 VOCALFUSION_3510_SALES_DEMO_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_sales_demo_path"
 VOCALFUSION_3510_AVS_SETUP_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_avs_setup_path"
 PI_HAT_CTRL_PATH="$THIRD_PARTY_PATH/pi_hat_ctrl"
+SENSORY_KEY_WORD_DETECTOR_FLAG=""
 GPIO_KEY_WORD_DETECTOR_FLAG=""
 HID_KEY_WORD_DETECTOR_FLAG=""
 ALIASES="$HOME/.bash_aliases"
@@ -196,7 +197,7 @@ PLATFORM=${PLATFORM:-$(get_platform)}
 
 if [ "$PLATFORM" == "Raspberry pi" ]
 then
-  PI_CMD="pi.sh ${GPIO_KEY_WORD_DETECTOR_FLAG} ${HID_KEY_WORD_DETECTOR_FLAG}"
+  PI_CMD="pi.sh ${SENSORY_KEY_WORD_DETECTOR_FLAG} ${GPIO_KEY_WORD_DETECTOR_FLAG} ${HID_KEY_WORD_DETECTOR_FLAG}"
   echo "Running command ${PI_CMD}"
   source $PI_CMD
 elif [ "$PLATFORM" == "Windows mingw64" ]
@@ -268,7 +269,13 @@ echo
 AUTOSTART_SESSION="avsrun"
 AUTOSTART_DIR=$HOME/.config/lxsession/LXDE-pi
 AUTOSTART=$AUTOSTART_DIR/autostart
-AVSRUN_CMD="lxterminal -t avsrun -e \"$BUILD_PATH/SampleApp/src/SampleApp $OUTPUT_CONFIG_FILE $THIRD_PARTY_PATH/alexa-rpi/models NONE 12 \$*\" &" #$* is for passing any extra arguments to Sampleapp through .avsrun-startup.sh shell script
+AVSRUN_CMD="lxterminal -t avsrun -e \"$BUILD_PATH/SampleApp/src/SampleApp $OUTPUT_CONFIG_FILE "
+if [ -n "$SENSORY_KEY_WORD_DETECTOR_FLAG" ]; then
+  AVSRUN_CMD+="$THIRD_PARTY_PATH/alexa-rpi/models NONE 12 \$*" #$* is for passing any extra arguments to Sampleapp through .avsrun-startup.sh shell script
+else
+  AVSRUN_CMD+="NONE"
+fi
+AVSRUN_CMD+="\" &"
 STARTUP_SCRIPT=$CURRENT_DIR/.avsrun-startup.sh
 if [ ! -f $AUTOSTART ]; then
   mkdir -p $AUTOSTART_DIR
@@ -316,7 +323,7 @@ while true; do
   esac
 done
 
-if [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ] && [ -z $HID_KEY_WORD_DETECTOR_FLAG ]
+if [ -n "$SENSORY_KEY_WORD_DETECTOR_FLAG" ]
 then
   SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
   XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
