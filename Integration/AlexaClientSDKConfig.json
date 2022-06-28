@@ -77,7 +77,8 @@
     "sampleApp": {
         "displayCardsSupported":true,
         "sensory": {
-            "modelFilePath": "${SDK_SENSORY_MODEL_FILE_PATH}"
+            "modelFilePath": "${SDK_SENSORY_MODEL_FILE_PATH}",
+            "snsrOperatingPoint": 12
         }
     }
 }

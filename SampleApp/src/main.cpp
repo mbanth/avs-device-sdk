@@ -54,9 +54,6 @@ bool usesOptStyleArgs(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
     std::vector<std::string> configFiles;
     std::string logLevel;
-#ifdef SENSORY_OP_POINT
-    int sensoryOpPoint = 5;
-#endif
 #ifdef XMOS_AVS_TESTS
     bool isFileStream = false;
 #endif
@@ -110,10 +107,6 @@ int main(int argc, char* argv[]) {
 #endif
 
     do {
-
-#ifdef SENSORY_OP_POINT
-      SampleApplication::setSensoryOpPoint(sensoryOpPoint);
-#endif
 
 #ifdef XMOS_AVS_TESTS
         SampleApplication::setIsFileStream(isFileStream);

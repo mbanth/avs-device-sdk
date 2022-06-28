@@ -173,10 +173,6 @@ std::shared_ptr<alexaClientSDK::avsCommon::sdkInterfaces::ApplicationMediaInterf
 namespace alexaClientSDK {
 namespace sampleApp {
 
-#ifdef SENSORY_OP_POINT
-int SampleApplication::m_sensoryOpPoint = 0;
-#endif
-
 #ifdef XMOS_AVS_TESTS
 bool SampleApplication::m_isFileStream = false;
 #endif  
@@ -684,9 +680,6 @@ std::unique_ptr<SampleApplication> SampleApplication::create(
     const std::string& logLevel,
     std::shared_ptr<avsCommon::sdkInterfaces::diagnostics::DiagnosticsInterface> diagnostics) {
     auto clientApplication = std::unique_ptr<SampleApplication>(new SampleApplication);
-#ifdef SENSORY_OP_POINT
-    alexaClientSDK::kwd::AbstractKeywordDetector::setSensoryOpPoint(SampleApplication::m_sensoryOpPoint);
-#endif
 #ifdef XMOS_AVS_TESTS
     alexaClientSDK::mediaPlayer::MediaPlayer::setIsFileStream(m_isFileStream);
     PortAudioMicrophoneWrapper::setIsFileStream(m_isFileStream);

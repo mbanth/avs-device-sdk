@@ -158,15 +158,6 @@ public:
             avsCommon::sdkInterfaces::ChannelVolumeInterface::Type speakerType);
     };
 
-#ifdef SENSORY_OP_POINT
-    /**
-     * Set Sensory operating point value
-     */
-    static void setSensoryOpPoint(int value) {
-        m_sensoryOpPoint = value;
-    }
-#endif
-
 #ifdef XMOS_AVS_TESTS
     /**
      * Set flag to indicate if the audio is streamed from a file.
@@ -344,13 +335,6 @@ private:
 
     /// The adapter that supports authorizing with LWA based methods.
     std::shared_ptr<acsdkAuthorization::lwa::LWAAuthorizationAdapter> m_lwaAdapter;
-#endif
-
-#ifdef SENSORY_OP_POINT
-    /*
-     * Operating point of the Sensory KWD engine.
-     */
-    static int m_sensoryOpPoint;
 #endif
 
 #ifdef XMOS_AVS_TESTS

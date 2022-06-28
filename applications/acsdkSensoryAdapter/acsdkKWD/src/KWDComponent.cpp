@@ -37,6 +37,7 @@ static const std::string TAG{"SensoryKWDComponent"};
 static const std::string SAMPLE_APP_CONFIG_ROOT_KEY("sampleApp");
 static const std::string SENSORY_CONFIG_ROOT_KEY("sensory");
 static const std::string SENSORY_MODEL_FILE_PATH("modelFilePath");
+static const std::string SENSORY_SNSR_OPERATING_POINT("snsrOperatingPoint");
 
 static std::shared_ptr<acsdkKWDImplementations::AbstractKeywordDetector> createAbstractKeywordDetector(
     const std::shared_ptr<avsCommon::avs::AudioInputStream>& stream,
@@ -44,17 +45,24 @@ static std::shared_ptr<acsdkKWDImplementations::AbstractKeywordDetector> createA
     std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keywordNotifier,
     std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> keywordDetectorStateNotifier) {
     std::string modelFilePath;
+    int snsrOperatingPoint;
     auto config = avsCommon::utils::configuration::ConfigurationNode::getRoot()[SAMPLE_APP_CONFIG_ROOT_KEY]
                                                                                [SENSORY_CONFIG_ROOT_KEY];
     if (config) {
         config.getString(SENSORY_MODEL_FILE_PATH, &modelFilePath);
+        config.getUint32(SENSORY_SNSR_OPERATING_POINT, &snsrOperatingPoint);
     }
     if (modelFilePath.empty()) {
         ACSDK_ERROR(LX("createFailed").d("reason", "emptyModelFilePath"));
         return nullptr;
     }
+    if (snsrOperatingPoint==0) {
+        ACSDK_ERROR(LX("createFailed").d("reason", "zeroSnsrOperatingPoint"));
+        return nullptr;
+    }
+
     return kwd::SensoryKeywordDetector::create(
-        stream, audioFormat, keywordNotifier, keywordDetectorStateNotifier, modelFilePath);
+        stream, audioFormat, keywordNotifier, keywordDetectorStateNotifier, modelFilePath, snsrOperatingPoint);
 };
 
 KWDComponent getComponent() {
