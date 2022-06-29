@@ -20,8 +20,8 @@
 #
 
 if [ -z "$PLATFORM" ]; then
-	echo "You should run the setup.sh script."
-	exit 1
+  echo "You should run the setup.sh script."
+  exit 1
 fi
 
 show_help() {
@@ -34,18 +34,18 @@ show_help() {
 }
 OPTIONS=GHh
 while getopts "$OPTIONS" opt ; do
-    case $opt in
-        G ) 
-            GPIO_KEY_WORD_DETECTOR_FLAG="ON"
-            ;;
-        H ) 
-            HID_KEY_WORD_DETECTOR_FLAG="ON"
-            ;;
-        h )
-            show_help
-            exit 1
-            ;;
-    esac
+  case $opt in
+    G )
+      GPIO_KEY_WORD_DETECTOR_FLAG="ON"
+      ;;
+    H )
+      HID_KEY_WORD_DETECTOR_FLAG="ON"
+      ;;
+    h )
+      show_help
+      exit 1
+      ;;
+  esac
 done
 
 SOUND_CONFIG="$HOME/.asoundrc"
@@ -82,10 +82,12 @@ install_dependencies() {
 run_os_specifics() {
   build_port_audio
   build_curl
-  echo
-  echo "==============> TAP-TO-TALK IS ENABLED =============="
-  echo
-  configure_sound
+  if [ [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ] && [ -z $HID_KEY_WORD_DETECTOR_FLAG ] && [ -z $SENSORY_KEY_WORD_DETECTOR_FLAG ] ]
+  then
+    echo
+    echo "==============> TAP-TO-TALK IS ENABLED =============="
+    echo
+  fi
 }
 
 configure_sound() {

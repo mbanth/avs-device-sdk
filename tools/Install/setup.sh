@@ -460,15 +460,19 @@ then
   cd $BUILD_PATH
   # remove -j2 option to allow building in Raspberry Pi3
   make SampleApp
-  make PreviewAlexaClient
-  make all
+
+  # The steps below are not needed for the XMOS setup
+  # make PreviewAlexaClient
+  # make all
 
 else
   cd $BUILD_PATH
   # remove -j2 option to allow building in Raspberry Pi3
   make SampleApp
-  make PreviewAlexaClient
-  make all
+
+  # The steps below are not needed for the XMOS setup
+  # make PreviewAlexaClient
+  # make all
 fi
 
 echo
@@ -489,13 +493,12 @@ awk -v config="$GSTREAMER_CONFIG" 'NR==1,/{/{sub(/{/,config)}1' $TEMP_CONFIG_FIL
 # Enable the suggestedLatency parameter for portAudio
 # Generate the lines to append
 CUSTOMTAB="    "
-append_lines_str="${CUSTOMTAB}${CUSTOMTAB}\"portAudio\":{\n${CUSTOMTAB}${CUSTOMTAB}${CUSTOMTAB}\"suggestedLatency\": 0.150\n${CUSTOMTAB}${CUSTOMTAB}}"
+append_lines_str="${CUSTOMTAB}${CUSTOMTAB}\"portAudio\":{\n${CUSTOMTAB}${CUSTOMTAB}${CUSTOMTAB}\"suggestedLatency\": 0.150\n${CUSTOMTAB}${CUSTOMTAB}},"
 
 # Save string with multiple lines in a file, so that it can be appended in the json file
 echo -e "$append_lines_str" > $TEMP_TEXT_FILE
 
 # Replace and append text
-sed -i -e "/displayCardsSupported/s/$/,/" $OUTPUT_CONFIG_FILE
 sed -i -e "/displayCardsSupported/r ${TEMP_TEXT_FILE}" $OUTPUT_CONFIG_FILE
 
 # Delete temp files
