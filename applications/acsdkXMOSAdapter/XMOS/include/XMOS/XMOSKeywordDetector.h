@@ -115,6 +115,22 @@ protected:
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
     /**
+     * Create a keyword notifier from the given keyword observers
+     * @param keyWordObservers The observers to notify of keyword detections.
+     * @return A new instance of @c KeywordNotifierInterface.
+     */
+    static std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface>  createNotifier(
+        std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers);
+
+    /**
+     * Create a keyword state notifier from the given keyword detector state observers
+     * @param keyWordObservers The observers to notify of keyword detections.
+     * @return A new instance of @c KeywordDetectorStateNotifierInterface.
+     */
+    static std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface>  createStateNotifier(
+        std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers);
+
+    /**
      * Initializes the stream reader, sets up the connection to the device, and kicks off thread to begin reading 
      * the audio stream. This function should only be called once with each new @c XMOSKeywordDetector.
      *

@@ -103,23 +103,12 @@ std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
         std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
         std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
         std::chrono::milliseconds msToPushPerIteration)  {
-    // Create Notifiers to be used instead of the observers.
-    auto keywordNotifier = acsdkKWDImplementations::KWDNotifierFactories::createKeywordNotifier();
-    for (auto kwObserver : keyWordObservers) {
-        keywordNotifier->addObserver(kwObserver);
-    }
-
-    auto keywordDetectorStateNotifier =
-        acsdkKWDImplementations::KWDNotifierFactories::createKeywordDetectorStateNotifier();
-    for (auto kwdStateObserver : keyWordDetectorStateObservers) {
-        keywordDetectorStateNotifier->addObserver(kwdStateObserver);
-    }
 
     return create(
         stream,
         std::make_shared<avsCommon::utils::AudioFormat>(audioFormat),
-        keywordNotifier,
-        keywordDetectorStateNotifier,
+        createNotifier(keyWordObservers),
+        createStateNotifier(keyWordDetectorStateObservers),
         msToPushPerIteration);
 }
 

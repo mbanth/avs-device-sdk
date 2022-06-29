@@ -15,6 +15,7 @@
  * permissions and limitations under the License.
  */
 
+#include <acsdkKWDImplementations/KWDNotifierFactories.h>
 #include "XMOS/XMOSKeywordDetector.h"
 
 namespace alexaClientSDK {
@@ -47,6 +48,28 @@ XMOSKeywordDetector::XMOSKeywordDetector(
         AbstractKeywordDetector(keywordNotifier, KeywordDetectorStateNotifier),
         m_stream{stream},
         m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
+}
+
+std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface>  XMOSKeywordDetector::createNotifier(
+    std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers) {
+    // Create Notifier to be used instead of the observers.
+    auto keywordNotifier = acsdkKWDImplementations::KWDNotifierFactories::createKeywordNotifier();
+    for (auto kwObserver : keyWordObservers) {
+        keywordNotifier->addObserver(kwObserver);
+    }
+    return keywordNotifier;
+}
+
+std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface>  XMOSKeywordDetector::createStateNotifier(
+    std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers) {
+
+    // Create State Notifier to be used instead of the observers.
+    auto keywordDetectorStateNotifier =
+        acsdkKWDImplementations::KWDNotifierFactories::createKeywordDetectorStateNotifier();
+    for (auto kwdStateObserver : keyWordDetectorStateObservers) {
+        keywordDetectorStateNotifier->addObserver(kwdStateObserver);
+    }
+    return keywordDetectorStateNotifier;
 }
 
 bool XMOSKeywordDetector::init() {
