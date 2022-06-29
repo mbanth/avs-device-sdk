@@ -162,6 +162,9 @@ protected:
     /// The stream of audio data.
     const std::shared_ptr<avsCommon::avs::AudioInputStream> m_stream;
 
+    /// The format of that audio data.
+    const avsCommon::utils::AudioFormat m_audioFormat;
+
     /// The reader that will be used to read audio data from the stream.
     std::shared_ptr<avsCommon::avs::AudioInputStream::Reader> m_streamReader;
 

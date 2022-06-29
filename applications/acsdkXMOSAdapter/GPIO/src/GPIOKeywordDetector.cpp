@@ -118,16 +118,6 @@ std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
     const std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keywordNotifier,
     const std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> keywordDetectorStateNotifier,
     std::chrono::milliseconds msToPushPerIteration) {
-    if (!stream) {
-        ACSDK_ERROR(LX("createFailed").d("reason", "nullStream"));
-        return nullptr;
-    }
-
-    // TODO: ACSDK-249 - Investigate cpu usage of converting bytes between endianness and if it's not too much, do it.
-    if (isByteswappingRequired(*audioFormat)) {
-        ACSDK_ERROR(LX("createFailed").d("reason", "endianMismatch"));
-        return nullptr;
-    }
 
     std::unique_ptr<GPIOKeywordDetector> detector(new GPIOKeywordDetector(
         stream, keywordNotifier, keywordDetectorStateNotifier, *audioFormat));

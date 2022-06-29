@@ -47,6 +47,7 @@ XMOSKeywordDetector::XMOSKeywordDetector(
     std::chrono::milliseconds msToPushPerIteration):
         AbstractKeywordDetector(keywordNotifier, KeywordDetectorStateNotifier),
         m_stream{stream},
+        m_audioFormat{audioFormat},
         m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
 }
 
@@ -73,6 +74,18 @@ std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface>  XMOS
 }
 
 bool XMOSKeywordDetector::init() {
+
+    if (!m_stream) {
+        ACSDK_ERROR(LX("initFailed").d("reason", "nullStream"));
+        return false;
+    }
+
+    // TODO: ACSDK-249 - Investigate cpu usage of converting bytes between endianness and if it's not too much, do it.
+    if (isByteswappingRequired(m_audioFormat)) {
+        ACSDK_ERROR(LX("initFailed").d("reason", "endianMismatch"));
+        return false;
+    }
+
     if (!openDevice()) {
         ACSDK_ERROR(LX("initFailed").d("reason", "openDeviceFailed"));
         return false;
