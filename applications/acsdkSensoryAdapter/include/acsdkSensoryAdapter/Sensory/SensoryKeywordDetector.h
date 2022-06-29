@@ -42,7 +42,7 @@ class SensoryKeywordDetector : public acsdkKWDImplementations::AbstractKeywordDe
 public:
     /**
      * Creates a @c SensoryKeywordDetector. Requires that the AlexaClientSDKConfig.json has a modelFilePath value 
-     * and a snsrOperatingPoint under sampleApp
+     * and a snsrOperatingPoint (XMOS-only feature) under sampleApp
      *
      * @param stream The stream of audio data. This should be formatted in LPCM encoded with 16 bits per sample and
      * have a sample rate of 16 kHz. Additionally, the data should be in little endian format.
@@ -50,7 +50,7 @@ public:
      * @param keyWordNotifier The object with which to notifiy observers of keyword detections.
      * @param KeyWordDetectorStateNotifier The object with which to notify observers of state changes in the engine.
      * @param modelFilePath The path to the model file.
-     * @param snsrOperatingPoint The operating point of the SNSR.
+     * @param snsrOperatingPoint The operating point of the SNSR (XMOS-only feature).
      * @param msToPushPerIteration The amount of data in milliseconds to push to Sensory at a time. Smaller sizes will
      * lead to less delay but more CPU usage. Additionally, larger amounts of data fed into the engine per iteration
      * might lead longer delays before receiving keyword detection events. This has been defaulted to 10 milliseconds
@@ -64,7 +64,9 @@ public:
         std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keyWordNotifier,
         std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> KeyWordDetectorStateNotifier,
         const std::string& modelFilePath,
+#ifdef SENSORY_OP_POINT
         const uint32_t& snsrOperatingPoint,
+#endif // SENSORY_OP_POINT
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
     /**
@@ -78,7 +80,7 @@ public:
      * @param keyWordObservers The observers to notify of keyword detections.
      * @param keyWordDetectorStateObservers The observers to notify of state changes in the engine.
      * @param modelFilePath The path to the model file.
-     * @param snsrOperatingPoint The operating point of the SNSR.
+     * @param snsrOperatingPoint The operating point of the SNSR (XMOS-only feature).
      * @param msToPushPerIteration The amount of data in milliseconds to push to Sensory at a time. Smaller sizes will
      * lead to less delay but more CPU usage. Additionally, larger amounts of data fed into the engine per iteration
      * might lead longer delays before receiving keyword detection events. This has been defaulted to 10 milliseconds
@@ -92,7 +94,9 @@ public:
         std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
         std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
         const std::string& modelFilePath,
+#ifdef SENSORY_OP_POINT
         const uint32_t& snsrOperatingPoint,
+#endif // SENSORY_OP_POINT
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
     /**

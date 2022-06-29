@@ -333,29 +333,6 @@ bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session) {
                         .d("error", getSensoryDetails(*session, result)));
         return false;
     }
-
-#ifdef SENSORY_OP_POINT
-    reses
-            ult = snsrSetInt(*session, SNSR_OPERATING_POINT, AbstractKeywordDetector::m_sensoryOpPoint);
-    if (result != SNSR_RC_OK)
-    {
-        ACSDK_ERROR(LX("setUpRuntimeSettingsFailed")
-                        .d("reason", "setSnsrOperatingPointFailure")
-                        .d("error", getSensoryDetails(*session, result)));
-        return false;
-    }
-
-    int op=0; 
-    result = snsrGetInt(*session, SNSR_OPERATING_POINT, &op);
-    if (result != SNSR_RC_OK) {
-        ACSDK_ERROR(LX("setUpRuntimeSettingsFailed")
-                        .d("reason", "gettingOperatingPointFaied")
-                        .d("error", getSensoryDetails(*session, result)));
-        return false;
-    }
-    printf("Sensory operating point = %d\n",op);
-    return true;
-#endif// SENSORY_OP_POINT
 }
 
 void SensoryKeywordDetector::detectionLoop() {

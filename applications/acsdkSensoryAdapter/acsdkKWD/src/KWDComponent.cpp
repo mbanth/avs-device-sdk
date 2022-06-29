@@ -37,32 +37,43 @@ static const std::string TAG{"SensoryKWDComponent"};
 static const std::string SAMPLE_APP_CONFIG_ROOT_KEY("sampleApp");
 static const std::string SENSORY_CONFIG_ROOT_KEY("sensory");
 static const std::string SENSORY_MODEL_FILE_PATH("modelFilePath");
+#ifdef SENSORY_OP_POINT
 static const std::string SENSORY_SNSR_OPERATING_POINT("snsrOperatingPoint");
-
+#endif // SENSORY_OP_POINT
 static std::shared_ptr<acsdkKWDImplementations::AbstractKeywordDetector> createAbstractKeywordDetector(
     const std::shared_ptr<avsCommon::avs::AudioInputStream>& stream,
     const std::shared_ptr<avsCommon::utils::AudioFormat>& audioFormat,
     std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keywordNotifier,
     std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> keywordDetectorStateNotifier) {
     std::string modelFilePath;
+#ifdef SENSORY_OP_POINT
     int snsrOperatingPoint;
+#endif // SENSORY_OP_POINT
     auto config = avsCommon::utils::configuration::ConfigurationNode::getRoot()[SAMPLE_APP_CONFIG_ROOT_KEY]
                                                                                [SENSORY_CONFIG_ROOT_KEY];
     if (config) {
         config.getString(SENSORY_MODEL_FILE_PATH, &modelFilePath);
+#ifdef SENSORY_OP_POINT
         config.getUint32(SENSORY_SNSR_OPERATING_POINT, &snsrOperatingPoint);
+#endif // SENSORY_OP_POINT
     }
     if (modelFilePath.empty()) {
         ACSDK_ERROR(LX("createFailed").d("reason", "emptyModelFilePath"));
         return nullptr;
     }
+#ifdef SENSORY_OP_POINT
     if (snsrOperatingPoint==0) {
         ACSDK_ERROR(LX("createFailed").d("reason", "zeroSnsrOperatingPoint"));
         return nullptr;
     }
+#endif // SENSORY_OP_POINT
 
     return kwd::SensoryKeywordDetector::create(
-        stream, audioFormat, keywordNotifier, keywordDetectorStateNotifier, modelFilePath, snsrOperatingPoint);
+        stream, audioFormat, keywordNotifier, keywordDetectorStateNotifier, modelFilePath \
+#ifdef SENSORY_OP_POINT
+        , snsrOperatingPoint
+#endif // SENSORY_OP_POINT
+        );
 };
 
 KWDComponent getComponent() {
