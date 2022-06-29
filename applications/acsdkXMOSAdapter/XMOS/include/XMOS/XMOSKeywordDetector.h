@@ -22,14 +22,14 @@
 #include <string>
 #include <thread>
 #include <unordered_set>
-#include <wiringPi.h>
 
-#include <AVSCommon/Utils/AudioFormat.h>
+#include <acsdkKWDImplementations/AbstractKeywordDetector.h>
+#include <acsdkKWDInterfaces/KeywordDetectorStateNotifierInterface.h>
+#include <acsdkKWDInterfaces/KeywordNotifierInterface.h>
 #include <AVSCommon/AVS/AudioInputStream.h>
-#include <AVSCommon/SDKInterfaces/KeyWordObserverInterface.h>
 #include <AVSCommon/SDKInterfaces/KeyWordDetectorStateObserverInterface.h>
-
-#include "KWD/AbstractKeywordDetector.h"
+#include <AVSCommon/SDKInterfaces/KeyWordObserverInterface.h>
+#include <AVSCommon/Utils/AudioFormat.h>
 
 namespace alexaClientSDK {
 namespace kwd {
@@ -48,12 +48,31 @@ using namespace avsCommon::avs;
 using namespace avsCommon::sdkInterfaces;
 
 // A specialization of a KeyWordEngine, where a trigger comes from an external XMOS device
-class XMOSKeywordDetector : public AbstractKeywordDetector {
+class XMOSKeywordDetector : public acsdkKWDImplementations::AbstractKeywordDetector {
 
-protected:
+public:
 
     /**
-     * Constructor.
+     * Creates an @c XMOSKeywordDetector
+     *
+     * @param stream The stream of audio data. This should be formatted in LPCM encoded with 16 bits per sample and
+     * have a sample rate of 16 kHz. Additionally, the data should be in little endian format.
+     * @param audioFormat The format of the audio data located within the stream.
+     * @param keyWordNotifier The object with which to notifiy observers of keyword detections.
+     * @param KeyWordDetectorStateNotifier The object with which to notify observers of state changes in the engine.
+     * @param msToPushPerIteration The amount of data in milliseconds to push to the cloud  at a time. This was the amount used by
+     * Sensory in example code.
+     */
+    static std::unique_ptr<XMOSKeywordDetector> create(
+        const std::shared_ptr<AudioInputStream> stream,
+        const std::shared_ptr<avsCommon::utils::AudioFormat>& audioFormat,
+        std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keyWordNotifier,
+        std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> KeyWordDetectorStateNotifier,
+        std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
+
+    /**
+     * @deprecated
+     * Creates an @c XMOSKeywordDetector
      *
      * @param stream The stream of audio data. This should be formatted in LPCM encoded with 16 bits per sample and
      * have a sample rate of 16 kHz. Additionally, the data should be in little endian format.
@@ -62,18 +81,38 @@ protected:
      * @param keyWordDetectorStateObservers The observers to notify of state changes in the engine.
      * @param msToPushPerIteration The amount of data in milliseconds to push to the cloud  at a time. This was the amount used by
      * Sensory in example code.
+     * @return A new @c XMOSKeywordDetector, or @c nullptr if the operation failed.
      */
-    XMOSKeywordDetector(
-        std::shared_ptr<AudioInputStream> stream,
+    static std::unique_ptr<XMOSKeywordDetector> create(
+        const std::shared_ptr<AudioInputStream> stream,
+        avsCommon::utils::AudioFormat audioFormat,
         std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
         std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
-        avsCommon::utils::AudioFormat audioFormat,
         std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
     /**
      * Destructor.
      */
     ~XMOSKeywordDetector();
+
+protected:
+    /**
+     * Constructor.
+     *
+     * @param stream The stream of audio data. This should be formatted in LPCM encoded with 16 bits per sample and
+     * have a sample rate of 16 kHz. Additionally, the data should be in little endian format.
+     * @param audioFormat The format of the audio data located within the stream.
+     * @param keywordNotifier The object with which to notifiy observers of keyword detections.
+     * @param KeywordDetectorStateNotifier The object with which to notify observers of state changes in the engine.
+     * @param msToPushPerIteration The amount of data in milliseconds to push to the cloud  at a time. This was the amount used by
+     * Sensory in example code.
+     */
+    XMOSKeywordDetector(
+        std::shared_ptr<AudioInputStream> stream,
+        const std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keywordNotifier,
+        const std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> KeywordDetectorStateNotifier,
+        avsCommon::utils::AudioFormat audioFormat,
+        std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
 
     /**
      * Initializes the stream reader, sets up the connection to the device, and kicks off thread to begin reading 

@@ -22,7 +22,9 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 
+#include <acsdkKWDImplementations/KWDNotifierFactories.h>
 #include <AVSCommon/Utils/Logger/Logger.h>
+
 #include "GPIO/GPIOKeywordDetector.h"
 
 namespace alexaClientSDK {
@@ -94,26 +96,52 @@ bool GPIOKeywordDetector::openDevice() {
     return true;
 }
 
+// Deprecated create method.
 std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
         std::shared_ptr<AudioInputStream> stream,
         avsCommon::utils::AudioFormat audioFormat,
         std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
         std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
         std::chrono::milliseconds msToPushPerIteration)  {
+    // Create Notifiers to be used instead of the observers.
+    auto keywordNotifier = acsdkKWDImplementations::KWDNotifierFactories::createKeywordNotifier();
+    for (auto kwObserver : keyWordObservers) {
+        keywordNotifier->addObserver(kwObserver);
+    }
 
+    auto keywordDetectorStateNotifier =
+        acsdkKWDImplementations::KWDNotifierFactories::createKeywordDetectorStateNotifier();
+    for (auto kwdStateObserver : keyWordDetectorStateObservers) {
+        keywordDetectorStateNotifier->addObserver(kwdStateObserver);
+    }
+
+    return create(
+        stream,
+        std::make_shared<avsCommon::utils::AudioFormat>(audioFormat),
+        keywordNotifier,
+        keywordDetectorStateNotifier,
+        msToPushPerIteration);
+}
+
+std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
+    std::shared_ptr<avsCommon::avs::AudioInputStream> stream,
+    const std::shared_ptr<avsCommon::utils::AudioFormat>& audioFormat,
+    const std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keywordNotifier,
+    const std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> keywordDetectorStateNotifier,
+    std::chrono::milliseconds msToPushPerIteration) {
     if (!stream) {
         ACSDK_ERROR(LX("createFailed").d("reason", "nullStream"));
         return nullptr;
     }
 
     // TODO: ACSDK-249 - Investigate cpu usage of converting bytes between endianness and if it's not too much, do it.
-    if (isByteswappingRequired(audioFormat)) {
+    if (isByteswappingRequired(*audioFormat)) {
         ACSDK_ERROR(LX("createFailed").d("reason", "endianMismatch"));
         return nullptr;
     }
 
     std::unique_ptr<GPIOKeywordDetector> detector(new GPIOKeywordDetector(
-        stream, keyWordObservers, keyWordDetectorStateObservers, audioFormat));
+        stream, keywordNotifier, keywordDetectorStateNotifier, *audioFormat));
 
     if (!detector->init()) {
         ACSDK_ERROR(LX("createFailed").d("reason", "initDetectorFailed"));
@@ -125,11 +153,11 @@ std::unique_ptr<GPIOKeywordDetector> GPIOKeywordDetector::create(
 
 GPIOKeywordDetector::GPIOKeywordDetector(
     std::shared_ptr<AudioInputStream> stream,
-    std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
-    std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
+    std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keywordNotifier,
+    std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> keywordDetectorStateNotifier,
     avsCommon::utils::AudioFormat audioFormat,
     std::chrono::milliseconds msToPushPerIteration) :
-        XMOSKeywordDetector(stream, keyWordObservers, keyWordDetectorStateObservers, audioFormat, msToPushPerIteration) {
+        XMOSKeywordDetector(stream, keywordNotifier, keywordDetectorStateNotifier, audioFormat, msToPushPerIteration) {
 }
 
 GPIOKeywordDetector::~GPIOKeywordDetector() {

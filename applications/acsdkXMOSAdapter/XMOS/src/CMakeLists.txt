@@ -1,12 +1,14 @@
-add_definitions("-DACSDK_LOG_MODULE=XMOSKeywordDetector")
-add_library(XMOS SHARED
+add_definitions("-DACSDK_LOG_MODULE=XMOS")
+add_library(XMOS
     XMOSKeywordDetector.cpp)
 
 target_include_directories(XMOS PUBLIC
-    "${KWD_SOURCE_DIR}/include"
-    "${XMOS_SOURCE_DIR}/include")
+        "${XMOS_SOURCE_DIR}/include")
 
-target_link_libraries(XMOS KWD AVSCommon)
+target_link_libraries(XMOS
+    acsdkKWDImplementations
+    acsdkKWDInterfaces
+    AVSCommon)
 
 # install target
 asdk_install()

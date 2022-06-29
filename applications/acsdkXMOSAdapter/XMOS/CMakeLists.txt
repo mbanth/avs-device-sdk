@@ -1,11 +1,8 @@
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 project(XMOS LANGUAGES CXX)
 
-add_subdirectory("src")
+include(${AVS_CMAKE_BUILD}/BuildDefaults.cmake)
 
-if(HID_KEY_WORD_DETECTOR)
-    add_subdirectory("HID")
-endif()
-if(GPIO_KEY_WORD_DETECTOR)
-    add_subdirectory("GPIO")
-endif()
+# set(TARGET_KWD_LIB "acsdkXMOSAdapter" PARENT_SCOPE)
+
+add_subdirectory("src")

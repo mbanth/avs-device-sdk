@@ -30,23 +30,23 @@ static const std::string TAG("XMOSKeywordDetector");
  */
 #define LX(event) alexaClientSDK::avsCommon::utils::logger::LogEntry(TAG, event)
 
-XMOSKeywordDetector::XMOSKeywordDetector(
-    std::shared_ptr<AudioInputStream> stream,
-    std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
-    std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
-    avsCommon::utils::AudioFormat audioFormat,
-    std::chrono::milliseconds msToPushPerIteration) :
-        AbstractKeywordDetector(keyWordObservers, keyWordDetectorStateObservers),
-        m_stream{stream},
-        m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
-}
-
 XMOSKeywordDetector::~XMOSKeywordDetector() {
     m_isShuttingDown = true;
     if (m_detectionThread.joinable())
         m_detectionThread.join();
     if (m_readAudioThread.joinable())
         m_readAudioThread.join();
+}
+
+XMOSKeywordDetector::XMOSKeywordDetector(
+    std::shared_ptr<AudioInputStream> stream,
+    const std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keywordNotifier,
+    const std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> KeywordDetectorStateNotifier,
+    avsCommon::utils::AudioFormat audioFormat,
+    std::chrono::milliseconds msToPushPerIteration):
+        AbstractKeywordDetector(keywordNotifier, KeywordDetectorStateNotifier),
+        m_stream{stream},
+        m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
 }
 
 bool XMOSKeywordDetector::init() {

@@ -1,4 +1,4 @@
-// Copyright (c) 2021 XMOS LIMITED. This Software is subject to the terms of the
+// Copyright (c) 2021-2022 XMOS LIMITED. This Software is subject to the terms of the
 // XMOS Public License: Version 1
 /*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -21,6 +21,7 @@
 #include <chrono>
 #include <dirent.h>
 
+#include <acsdkKWDImplementations/KWDNotifierFactories.h>
 #include <AVSCommon/Utils/Logger/Logger.h>
 
 #include "HID/HIDKeywordDetector.h"
@@ -138,26 +139,52 @@ bool HIDKeywordDetector::openDevice() {
     return true;
 }
 
+// Deprecated create method.
 std::unique_ptr<HIDKeywordDetector> HIDKeywordDetector::create(
         std::shared_ptr<AudioInputStream> stream,
         avsCommon::utils::AudioFormat audioFormat,
         std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
         std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
         std::chrono::milliseconds msToPushPerIteration)  {
+    // Create Notifiers to be used instead of the observers.
+    auto keywordNotifier = acsdkKWDImplementations::KWDNotifierFactories::createKeywordNotifier();
+    for (auto kwObserver : keyWordObservers) {
+        keywordNotifier->addObserver(kwObserver);
+    }
 
+    auto keywordDetectorStateNotifier =
+        acsdkKWDImplementations::KWDNotifierFactories::createKeywordDetectorStateNotifier();
+    for (auto kwdStateObserver : keyWordDetectorStateObservers) {
+        keywordDetectorStateNotifier->addObserver(kwdStateObserver);
+    }
+
+    return create(
+        stream,
+        std::make_shared<avsCommon::utils::AudioFormat>(audioFormat),
+        keywordNotifier,
+        keywordDetectorStateNotifier,
+        msToPushPerIteration);
+}
+
+std::unique_ptr<HIDKeywordDetector> HIDKeywordDetector::create(
+    std::shared_ptr<avsCommon::avs::AudioInputStream> stream,
+    const std::shared_ptr<avsCommon::utils::AudioFormat>& audioFormat,
+    const std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keywordNotifier,
+    const std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> keywordDetectorStateNotifier,
+    std::chrono::milliseconds msToPushPerIteration) {
     if (!stream) {
         ACSDK_ERROR(LX("createFailed").d("reason", "nullStream"));
         return nullptr;
     }
 
     // TODO: ACSDK-249 - Investigate cpu usage of converting bytes between endianness and if it's not too much, do it.
-    if (isByteswappingRequired(audioFormat)) {
+    if (isByteswappingRequired(*audioFormat)) {
         ACSDK_ERROR(LX("createFailed").d("reason", "endianMismatch"));
         return nullptr;
     }
 
     std::unique_ptr<HIDKeywordDetector> detector(new HIDKeywordDetector(
-        stream, keyWordObservers, keyWordDetectorStateObservers, audioFormat));
+        stream, keywordNotifier, keywordDetectorStateNotifier, *audioFormat));
 
     if (!detector->init()) {
         ACSDK_ERROR(LX("createFailed").d("reason", "initDetectorFailed"));
@@ -169,16 +196,15 @@ std::unique_ptr<HIDKeywordDetector> HIDKeywordDetector::create(
 
 HIDKeywordDetector::HIDKeywordDetector(
     std::shared_ptr<AudioInputStream> stream,
-    std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
-    std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
+    std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keywordNotifier,
+    std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> keywordDetectorStateNotifier,
     avsCommon::utils::AudioFormat audioFormat,
     std::chrono::milliseconds msToPushPerIteration) :
-        XMOSKeywordDetector(stream, keyWordObservers, keyWordDetectorStateObservers, audioFormat, msToPushPerIteration) {
+        XMOSKeywordDetector(stream, keywordNotifier, keywordDetectorStateNotifier, audioFormat, msToPushPerIteration) {
 }
 
 HIDKeywordDetector::~HIDKeywordDetector() {
 }
-
 
 bool HIDKeywordDetector::init() {
     if (XMOSKeywordDetector::init()) {
