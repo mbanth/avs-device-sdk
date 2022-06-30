@@ -33,7 +33,7 @@ show_help() {
   echo  '  -S                    Flag to enable Sensory keyword detector'
   echo  '  -h                    Display this help and exit'
 }
-OPTIONS=GHh
+OPTIONS=GHSh
 while getopts "$OPTIONS" opt ; do
   case $opt in
     G )
