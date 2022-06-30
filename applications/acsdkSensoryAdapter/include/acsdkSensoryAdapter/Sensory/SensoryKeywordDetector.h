@@ -15,8 +15,6 @@
 
 #ifndef ACSDKSENSORYADAPTER_SENSORY_SENSORYKEYWORDDETECTOR_H_
 #define ACSDKSENSORYADAPTER_SENSORY_SENSORYKEYWORDDETECTOR_H_
-#define SnsrSession int*
-#define SnsrRC int
 #include <atomic>
 #include <string>
 #include <thread>
@@ -30,7 +28,7 @@
 #include <AVSCommon/SDKInterfaces/KeyWordObserverInterface.h>
 #include <AVSCommon/Utils/AudioFormat.h>
 
-//#include "snsr.h"
+#include "snsr.h"
 
 namespace alexaClientSDK {
 namespace kwd {
@@ -132,10 +130,14 @@ private:
      * the stream. This function should only be called once with each new @c SensoryKeywordDetector.
      *
      * @param modelFilePath The path to the model file.
-     * @param snsrOperatingPoint The operating point of the SNSR.
+     * @param snsrOperatingPoint The operating point of the SNSR. (XMOS-only feature).
      * @return @c true if the engine was initialized properly and @c false otherwise.
      */
-    bool init(const std::string& modelFilePath, const uint32_t& snsrOperatingPoint);
+    bool init(const std::string& modelFilePath,
+#ifdef SENSORY_OP_POINT
+        const uint32_t& snsrOperatingPoint
+#endif // SENSORY_OP_POINT
+        );
 
     /**
      * Sets up the runtime settings for a @c SnsrSession. This includes setting the callback handler and setting the
