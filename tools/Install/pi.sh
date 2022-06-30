@@ -30,6 +30,7 @@ show_help() {
   echo  'Optional parameters'
   echo  '  -G                    Flag to enable keyword detector on GPIO interrupt'
   echo  '  -H                    Flag to enable keyword detector on HID event'
+  echo  '  -S                    Flag to enable Sensory keyword detector'
   echo  '  -h                    Display this help and exit'
 }
 OPTIONS=GHh
@@ -41,6 +42,10 @@ while getopts "$OPTIONS" opt ; do
     H )
       HID_KEY_WORD_DETECTOR_FLAG="ON"
       ;;
+    S )
+      SENSORY_KEY_WORD_DETECTOR_FLAG="ON"
+      ;;
+
     h )
       show_help
       exit 1
