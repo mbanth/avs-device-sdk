@@ -342,8 +342,18 @@ if [ ! -f $AUTOSTART ]; then
   mkdir -p $AUTOSTART_DIR
   cp /etc/xdg/lxsession/LXDE-pi/autostart $AUTOSTART
 fi
+
+ASOUNDRC_FILE="~/.asoundrc"
 cat << EOF > "$STARTUP_SCRIPT"
 #!/bin/bash
+# wait for host to boot up
+sleep 5
+# check if .asoundrc file exists
+while [[ ! -f $ASOUNDRC_FILE ]]; do
+    sleep 2
+    echo "$ASOUNDRC_FILE file not found, wait 2 second(s)"
+done
+# start AVS console
 $AVSRUN_CMD
 EOF
 
