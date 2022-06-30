@@ -15,6 +15,7 @@
 
 #ifndef ACSDKSENSORYADAPTER_SENSORY_SENSORYKEYWORDDETECTOR_H_
 #define ACSDKSENSORYADAPTER_SENSORY_SENSORYKEYWORDDETECTOR_H_
+
 #include <atomic>
 #include <string>
 #include <thread>
@@ -71,7 +72,7 @@ public:
     /**
      * @deprecated
      * Creates a @c SensoryKeywordDetector. Requires that the AlexaClientSDKConfig.json has a modelFilePath value 
-     * and a snsrOperatingPoint under sampleApp
+     * and a snsrOperatingPoint (XMOS-only feature) under sampleApp
      *
      * @param stream The stream of audio data. This should be formatted in LPCM encoded with 16 bits per sample and
      * have a sample rate of 16 kHz. Additionally, the data should be in little endian format.
@@ -110,7 +111,7 @@ private:
      * @param stream The stream of audio data. This should be formatted in LPCM encoded with 16 bits per sample and
      * have a sample rate of 16 kHz. Additionally, the data should be in little endian format.
      * @param audioFormat The format of the audio data located within the stream.
-     * @param keywordNotifier The object with which to notifiy observers of keyword detections.
+     * @param keywordNotifier The object with which to notify observers of keyword detections.
      * @param KeywordDetectorStateNotifier The object with which to notify observers of state changes in the engine.
      * @param msToPushPerIteration The amount of data in milliseconds to push to Sensory at a time. Smaller sizes will
      * lead to less delay but more CPU usage. Additionally, larger amounts of data fed into the engine per iteration
