@@ -15,7 +15,8 @@
 
 #ifndef ACSDKSENSORYADAPTER_SENSORY_SENSORYKEYWORDDETECTOR_H_
 #define ACSDKSENSORYADAPTER_SENSORY_SENSORYKEYWORDDETECTOR_H_
-
+#define SnsrSession int*
+#define SnsrRC int
 #include <atomic>
 #include <string>
 #include <thread>
@@ -29,7 +30,7 @@
 #include <AVSCommon/SDKInterfaces/KeyWordObserverInterface.h>
 #include <AVSCommon/Utils/AudioFormat.h>
 
-#include "snsr.h"
+//#include "snsr.h"
 
 namespace alexaClientSDK {
 namespace kwd {
