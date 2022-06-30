@@ -12,7 +12,7 @@
 #           -DAMAZONLITE_KEY_WORD_DETECTOR_INCLUDE_DIR=<path-to-amazon-include-dir>
 #           -DAMAZONLITE_KEY_WORD_DETECTOR_DYNAMIC_MODEL_LOADING=<ON_OR_OFF>
 #           -DAMAZONLITE_KEY_WORD_DETECTOR_MODEL_CPP_PATH=<path-to-model-cpp-file-if-dynamic-model-loading-disabled>
-#       -DSENSORY_KEY_WORD_DETECTOR=ON 
+#       -DSENSORY_KEY_WORD_DETECTOR=ON
 #           -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=<path-to-sensory-lib>
 #           -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=<path-to-sensory-include-dir>
 #       -DGPIO_KEY_WORD_DETECTOR=ON
@@ -67,13 +67,6 @@ if(AMAZONLITE_KEY_WORD_DETECTOR)
     if(NOT AMAZONLITE_KEY_WORD_DETECTOR_INCLUDE_DIR)
         message(FATAL_ERROR "Must pass include dir path of AmazonLite KeywordDetector!")
     endif()
-    if(NOT AMAZONLITE_KEY_WORD_DETECTOR_DYNAMIC_MODEL_LOADING)
-        if(NOT AMAZONLITE_KEY_WORD_DETECTOR_MODEL_CPP_PATH)
-            message(FATAL_ERROR "Must pass the path of the desired model .cpp file for the AmazonLite Keyword Detector if dynamic loading of model is disabled!")
-        endif()
-    else()
-        add_definitions(-DKWD_AMAZONLITE_DYNAMIC_MODEL_LOADING)
-    endif()
     add_definitions(-DKWD)
     add_definitions(-DKWD_AMAZONLITE)
     set(KWD ON)
@@ -90,6 +83,10 @@ if(SENSORY_KEY_WORD_DETECTOR)
     add_definitions(-DKWD)
     add_definitions(-DKWD_SENSORY)
     set(KWD ON)
+
+    # If Sensory KWD Enabled Add SensoryAdapter to extension paths to include with project.
+    set(EXTENSION_PATHS "${PROJECT_SOURCE_DIR}/applications/acsdkSensoryAdapter;${EXTENSION_PATHS}" CACHE STRING
+        "Adding SensoryAdapter to the ExtensionPaths" FORCE)
 endif()
 
 if(GPIO_KEY_WORD_DETECTOR)
@@ -97,6 +94,13 @@ if(GPIO_KEY_WORD_DETECTOR)
     add_definitions(-DKWD)
     add_definitions(-DKWD_GPIO)
     set(KWD ON)
+
+    # If XMOS KWD enabled add XMOSAdapter to extension paths to include with project.
+    set(EXTENSION_PATHS "${PROJECT_SOURCE_DIR}/applications/acsdkXMOSAdapter/XMOS;${EXTENSION_PATHS}" CACHE STRING
+            "Adding XMOSAdapter to the ExtensionPaths" FORCE)
+    # If XMOS GPIO KWD enabled add GPIO XMOSAdapter to extension paths to include with project.
+    set(EXTENSION_PATHS "${PROJECT_SOURCE_DIR}/applications/acsdkXMOSAdapter/GPIO;${EXTENSION_PATHS}" CACHE STRING
+            "Adding XMOSAdapter GPIO to the ExtensionPaths" FORCE)
 endif()
 
 if(HID_KEY_WORD_DETECTOR)
@@ -104,6 +108,14 @@ if(HID_KEY_WORD_DETECTOR)
     add_definitions(-DKWD)
     add_definitions(-DKWD_HID)
     set(KWD ON)
+
+    # If XMOS KWD enabled add XMOSAdapter to extension paths to include with project.
+    set(EXTENSION_PATHS "${PROJECT_SOURCE_DIR}/applications/acsdkXMOSAdapter/XMOS;${EXTENSION_PATHS}" CACHE STRING
+            "Adding XMOSAdapter to the ExtensionPaths" FORCE)
+    # If XMOS HID KWD enabled add HID XMOSAdapter to extension paths to include with project.
+    set(EXTENSION_PATHS "${PROJECT_SOURCE_DIR}/applications/acsdkXMOSAdapter/HID;${EXTENSION_PATHS}" CACHE STRING
+            "Adding XMOSAdapter HID to the ExtensionPaths" FORCE)
+
 endif()
 
 if(PI_HAT_CTRL)
