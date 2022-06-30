@@ -47,7 +47,7 @@ static std::shared_ptr<acsdkKWDImplementations::AbstractKeywordDetector> createA
     std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> keywordDetectorStateNotifier) {
     std::string modelFilePath;
 #ifdef SENSORY_OP_POINT
-    int snsrOperatingPoint;
+    uint32_t snsrOperatingPoint;
 #endif // SENSORY_OP_POINT
     auto config = avsCommon::utils::configuration::ConfigurationNode::getRoot()[SAMPLE_APP_CONFIG_ROOT_KEY]
                                                                                [SENSORY_CONFIG_ROOT_KEY];
@@ -69,7 +69,7 @@ static std::shared_ptr<acsdkKWDImplementations::AbstractKeywordDetector> createA
 #endif // SENSORY_OP_POINT
 
     return kwd::SensoryKeywordDetector::create(
-        stream, audioFormat, keywordNotifier, keywordDetectorStateNotifier, modelFilePath \
+        stream, audioFormat, keywordNotifier, keywordDetectorStateNotifier, modelFilePath
 #ifdef SENSORY_OP_POINT
         , snsrOperatingPoint
 #endif // SENSORY_OP_POINT

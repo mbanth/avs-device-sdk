@@ -32,20 +32,35 @@ namespace kwd {
 static const std::string SAMPLE_APP_CONFIG_ROOT_KEY("sampleApp");
 static const std::string SENSORY_CONFIG_ROOT_KEY("sensory");
 static const std::string SENSORY_MODEL_FILE_PATH("modelFilePath");
-
+#ifdef SENSORY_OP_POINT
+static const std::string SENSORY_SNSR_OPERATING_POINT("snsrOperatingPoint");
+#endif // SENSORY_OP_POINT
 std::unique_ptr<acsdkKWDImplementations::AbstractKeywordDetector> createSensoryKWDAdapter(
     std::shared_ptr<avsCommon::avs::AudioInputStream> stream,
     avsCommon::utils::AudioFormat audioFormat,
     std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
     std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers) {
     std::string modelFilePath;
+#ifdef SENSORY_OP_POINT
+    uint32_t snsrOperatingPoint;
+#endif // SENSORY_OP_POINT
+
     auto config = avsCommon::utils::configuration::ConfigurationNode::getRoot()[SAMPLE_APP_CONFIG_ROOT_KEY]
                                                                                [SENSORY_CONFIG_ROOT_KEY];
     if (config) {
         config.getString(SENSORY_MODEL_FILE_PATH, &modelFilePath);
+#ifdef SENSORY_OP_POINT
+        config.getUint32(SENSORY_SNSR_OPERATING_POINT, &snsrOperatingPoint);
+#endif // SENSORY_OP_POINT
+
     }
     return kwd::SensoryKeywordDetector::create(
-        stream, audioFormat, keyWordObservers, keyWordDetectorStateObservers, modelFilePath);
+        stream, audioFormat, keyWordObservers, keyWordDetectorStateObservers, modelFilePath
+#ifdef SENSORY_OP_POINT
+        , snsrOperatingPoint
+#endif // SENSORY_OP_POINT
+        );
+
 }
 
 /// The registration object to register the Sensory adapter's creation method.
