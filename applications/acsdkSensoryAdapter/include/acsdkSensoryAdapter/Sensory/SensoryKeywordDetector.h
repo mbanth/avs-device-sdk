@@ -133,9 +133,9 @@ private:
      * @param snsrOperatingPoint The operating point of the SNSR. (XMOS-only feature).
      * @return @c true if the engine was initialized properly and @c false otherwise.
      */
-    bool init(const std::string& modelFilePath,
+    bool init(const std::string& modelFilePath
 #ifdef SENSORY_OP_POINT
-        const uint32_t& snsrOperatingPoint
+        , const uint32_t& snsrOperatingPoint
 #endif // SENSORY_OP_POINT
         );
 

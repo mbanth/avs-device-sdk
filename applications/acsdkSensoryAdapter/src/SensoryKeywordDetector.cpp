@@ -12,6 +12,7 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
+
 #include <memory>
 
 #include <acsdkKWDImplementations/KWDNotifierFactories.h>
@@ -130,7 +131,6 @@ SnsrRC SensoryKeywordDetector::keyWordDetectedCallback(SnsrSession s, const char
     const char* keyword;
     double begin;
     double end;
-
     result = snsrGetDouble(s, SNSR_RES_BEGIN_SAMPLE, &begin);
     if (result != SNSR_RC_OK) {
         ACSDK_ERROR(LX("keyWordDetectedCallbackFailed")
@@ -226,7 +226,11 @@ std::unique_ptr<SensoryKeywordDetector> SensoryKeywordDetector::create(
 
     std::unique_ptr<SensoryKeywordDetector> detector(new SensoryKeywordDetector(
         stream, keywordNotifier, keywordDetectorStateNotifier, *audioFormat, msToPushPerIteration));
-    if (!detector->init(modelFilePath, snsrOperatingPoint)) {
+    if (!detector->init(modelFilePath
+#ifdef SENSORY_OP_POINT
+        , snsrOperatingPoint
+#endif // SENSORY_OP_POINT
+        )) {
         ACSDK_ERROR(LX("createFailed").d("reason", "initDetectorFailed"));
         return nullptr;
     }
@@ -397,8 +401,6 @@ void SensoryKeywordDetector::detectionLoop() {
              * relative to it.
              */
             m_beginIndexOfStreamReader = m_streamReader->tell();
-
-        }
             SnsrSession newSession{nullptr};
             /*
              * This duplicated SnsrSession will have all the same configurations as m_session but none of the runtime
@@ -446,6 +448,7 @@ void SensoryKeywordDetector::detectionLoop() {
             if (didErrorOccur) {
                 break;
             }
+        }
         // Reset return code for next round
         snsrClearRC(m_session);
     }
