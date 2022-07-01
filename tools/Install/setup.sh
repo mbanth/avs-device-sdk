@@ -342,8 +342,22 @@ if [ ! -f $AUTOSTART ]; then
   mkdir -p $AUTOSTART_DIR
   cp /etc/xdg/lxsession/LXDE-pi/autostart $AUTOSTART
 fi
+
+# in the startup script we need to check if the .asoundrc file is present,
+# this is needed because of this known issue in Raspian Buster:
+# https://forums.raspberrypi.com/viewtopic.php?t=295008# 
+ASOUNDRC_FILE="~/.asoundrc"
+PAUSE_SEC=2
 cat << EOF > "$STARTUP_SCRIPT"
 #!/bin/bash
+# wait for host to boot up
+sleep 5
+# check if .asoundrc file exists
+while [[ ! -f $ASOUNDRC_FILE ]]; do
+    echo "$ASOUNDRC_FILE file not found, wait $PAUSE_SEC seconds"
+    sleep $PAUSE_SEC
+done
+# start AVS console
 $AVSRUN_CMD
 EOF
 
