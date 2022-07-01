@@ -9,8 +9,7 @@ target_include_directories(SENSORY PUBLIC
 target_link_libraries(SENSORY
     acsdkKWDImplementations
     acsdkKWDInterfaces
-    AVSCommon
-    "${SENSORY_KEY_WORD_DETECTOR_LIB_PATH}")
+    AVSCommon)
 
 # install target
 asdk_install()

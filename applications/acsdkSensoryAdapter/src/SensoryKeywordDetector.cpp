@@ -112,6 +112,7 @@ static bool isAudioFormatCompatibleWithSensory(avsCommon::utils::AudioFormat aud
  * @return The pertinent message about the sensory session in string format.
  */
 static std::string getSensoryDetails(SnsrSession session, SnsrRC result) {
+	/*
     std::string message;
     // It is recommended by Sensory to prefer snsrErrorDetail() over snsrRCMessage() as it provides more details.
     if (session) {
@@ -121,16 +122,18 @@ static std::string getSensoryDetails(SnsrSession session, SnsrRC result) {
     }
     if (message.empty()) {
         message = "Unrecognized error";
-    }
-    return message;
+    }*/
+    return "";
 }
 
 SnsrRC SensoryKeywordDetector::keyWordDetectedCallback(SnsrSession s, const char* key, void* userData) {
     SensoryKeywordDetector* engine = static_cast<SensoryKeywordDetector*>(userData);
-    SnsrRC result;
-    const char* keyword;
-    double begin;
-    double end;
+    SnsrRC result = 0;
+    const char* keyword = "";
+    double begin = 0;
+    double end =0;
+    getSensoryDetails(s, result);
+    /*
     result = snsrGetDouble(s, SNSR_RES_BEGIN_SAMPLE, &begin);
     if (result != SNSR_RC_OK) {
         ACSDK_ERROR(LX("keyWordDetectedCallbackFailed")
@@ -154,13 +157,13 @@ SnsrRC SensoryKeywordDetector::keyWordDetectedCallback(SnsrSession s, const char
                         .d("error", getSensoryDetails(s, result)));
         return result;
     }
-
+*/
     engine->notifyKeyWordObservers(
         engine->m_stream,
         keyword,
         engine->m_beginIndexOfStreamReader + begin,
         engine->m_beginIndexOfStreamReader + end);
-    return SNSR_RC_OK;
+    return 0;//SNSR_RC_OK;
 }
 
 // Deprecated create method.
@@ -243,7 +246,7 @@ SensoryKeywordDetector::~SensoryKeywordDetector() {
     if (m_detectionThread.joinable()) {
         m_detectionThread.join();
     }
-    snsrRelease(m_session);
+    //snsrRelease(m_session);
 }
 
 SensoryKeywordDetector::SensoryKeywordDetector(
@@ -254,7 +257,7 @@ SensoryKeywordDetector::SensoryKeywordDetector(
     std::chrono::milliseconds msToPushPerIteration) :
         acsdkKWDImplementations::AbstractKeywordDetector(keywordNotifier, keywordDetectorStateNotifier),
         m_stream{stream},
-        m_session{nullptr},
+        m_session{0},
         m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
 }
 
@@ -268,7 +271,7 @@ bool SensoryKeywordDetector::init(const std::string& modelFilePath
         ACSDK_ERROR(LX("initFailed").d("reason", "createStreamReaderFailed"));
         return false;
     }
-
+/*
     // Allocate the Sensory library handle
     SnsrRC result = snsrNew(&m_session);
     if (result != SNSR_RC_OK) {
@@ -312,8 +315,8 @@ bool SensoryKeywordDetector::init(const std::string& modelFilePath
                         .d("error", getSensoryDetails(m_session, result)));
         return false;
     }
-
-    if (!setUpRuntimeSettings(&m_session,
+*/
+    if (!setUpRuntimeSettings(&m_session
 #ifdef SENSORY_OP_POINT
     , snsrOperatingPoint
 #endif // SENSORY_OP_POINT
@@ -347,10 +350,10 @@ bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session
         return false;
     }
 
-    /*
+    *
      * Turns off automatic pipeline flushing that happens when the end of the input stream is reached. This is an
      * internal setting recommended by Sensory when audio is presented to Sensory in small chunks.
-     */
+     *
     result = snsrSetInt(*session, SNSR_AUTO_FLUSH, 0);
     if (result != SNSR_RC_OK) {
         ACSDK_ERROR(LX("setUpRuntimeSettingsFailed")
@@ -388,7 +391,7 @@ void SensoryKeywordDetector::detectionLoop() {
     m_beginIndexOfStreamReader = m_streamReader->tell();
     notifyKeyWordDetectorStateObservers(KeyWordDetectorStateObserverInterface::KeyWordDetectorState::ACTIVE);
     std::vector<int16_t> audioDataToPush(m_maxSamplesPerPush);
-    SnsrRC result;
+    //SnsrRC result;
     while (!m_isShuttingDown) {
         bool didErrorOccur = false;
         auto wordsRead = readFromStream(
@@ -410,12 +413,13 @@ void SensoryKeywordDetector::detectionLoop() {
              * relative to it.
              */
             m_beginIndexOfStreamReader = m_streamReader->tell();
-            SnsrSession newSession{nullptr};
+            //SnsrSession newSession{nullptr};
             /*
              * This duplicated SnsrSession will have all the same configurations as m_session but none of the runtime
              * settings. Thus, we will need to setup some of the runtime settings again. The reason for creating a new
              * session is so that on overrun conditions, Sensory can start counting from 0 again.
              */
+	    /*
             result = snsrDup(m_session, &newSession);
             if (result != SNSR_RC_OK) {
                 ACSDK_ERROR(LX("detectionLoopFailed")
@@ -428,9 +432,10 @@ void SensoryKeywordDetector::detectionLoop() {
                 break;
             }
 
-            m_session = newSession;
+            m_session = newSession;*/
         } else if (wordsRead > 0) {
             // Words were successfully read.
+	    /*
             snsrSetStream(
                 m_session,
                 SNSR_SOURCE_AUDIO_PCM,
@@ -460,6 +465,8 @@ void SensoryKeywordDetector::detectionLoop() {
         }
         // Reset return code for next round
         snsrClearRC(m_session);
+	*/
+        }
     }
     m_streamReader->close();
 }

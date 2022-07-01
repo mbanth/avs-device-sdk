@@ -29,7 +29,7 @@
 #include <AVSCommon/SDKInterfaces/KeyWordObserverInterface.h>
 #include <AVSCommon/Utils/AudioFormat.h>
 
-#include "snsr.h"
+//#include "snsr.h"
 
 namespace alexaClientSDK {
 namespace kwd {
@@ -37,7 +37,8 @@ namespace kwd {
 using namespace avsCommon;
 using namespace avsCommon::avs;
 using namespace avsCommon::sdkInterfaces;
-
+#define SnsrSession int
+#define SnsrRC int
 class SensoryKeywordDetector : public acsdkKWDImplementations::AbstractKeywordDetector {
 public:
     /**
@@ -147,7 +148,7 @@ private:
      * @param session The SnsrSession to set up runtime settings for.
      * @return @c true if everything succeeded and @c false otherwise.
      */
-    bool setUpRuntimeSettings(SnsrSession* session,
+    bool setUpRuntimeSettings(SnsrSession* session
 #ifdef SENSORY_OP_POINT
         , const uint32_t snsrOperatingPoint
 #endif // SENSORY_OP_POINT
