@@ -313,7 +313,7 @@ bool SensoryKeywordDetector::init(const std::string& modelFilePath
         return false;
     }
 
-    if (!setUpRuntimeSettings(&m_session,
+    if (!setUpRuntimeSettings(&m_session
 #ifdef SENSORY_OP_POINT
     , snsrOperatingPoint
 #endif // SENSORY_OP_POINT
