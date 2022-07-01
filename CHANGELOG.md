@@ -5,7 +5,8 @@ Feature enhancements, updates, and resolved issues from all releases are availab
 
 **XMOS-only change** - version 0:
 
-    * ported XMOS KWD adapters to latest version of the SDK
+    * port XMOS KWD adapters to latest version of the SDK
+    * delay startup of AVS console till .asoundrc file is found
 
 ### Version 1.25.0 - August 23 2021
 Feature enhancements, updates, and resolved issues from all releases are available on the [Amazon developer portal](https://developer.amazon.com/docs/alexa/avs-device-sdk/release-notes.html)
