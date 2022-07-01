@@ -327,7 +327,7 @@ bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session) {
         ACSDK_ERROR(LX("setUpRuntimeSettingsFailed").d("reason", "nullSession"));
         return false;
     }
-
+/*
     // Setting the callback handler
     SnsrRC result = snsrSetHandler(
         *session, SNSR_RESULT_EVENT, snsrCallback(keyWordDetectedCallback, nullptr, reinterpret_cast<void*>(this)));
@@ -350,7 +350,7 @@ bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session) {
                         .d("error", getSensoryDetails(*session, result)));
         return false;
     }
-
+*/
 #ifdef SENSORY_OP_POINT
     result = snsrSetInt(*session, SNSR_OPERATING_POINT, AbstractKeywordDetector::m_sensoryOpPoint);
     if (result != SNSR_RC_OK)
@@ -371,8 +371,9 @@ bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session) {
     }
     ACSDK_INFO(LX("setUpRuntimeSettingsFailed")
                     .d("operating point",op));
-    return true;
 #endif// SENSORY_OP_POINT
+    return true;
+
 }
 
 void SensoryKeywordDetector::detectionLoop() {
