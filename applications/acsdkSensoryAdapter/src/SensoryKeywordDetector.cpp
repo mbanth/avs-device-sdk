@@ -370,7 +370,7 @@ bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session) {
         return false;
     }
     ACSDK_INFO(LX("setUpRuntimeSettingsFailed")
-                    .d("operating point",op);
+                    .d("operating point",op));
     return true;
 #endif// SENSORY_OP_POINT
 }

@@ -137,7 +137,9 @@ show_help() {
   echo  '  -i <user-pin>       PKCS#11 user pin to access key object functions.'
   echo  '  -k <key-name>       PKCS#11 key object label.'
   echo  '  -x <xmos-device-type> XMOS device to setup: possible values are xvf3100, xvf3500, xvf3510, xvf3600-slave, xvf3600-master, or xvf3610, default is xvf3510'
-  echo  '  -g                    Flag to enable keyword detector on GPIO interrupt'
+  echo  '  -G                  Flag to enable keyword detector on GPIO interrupt'
+  echo  '  -H                  Flag to enable keyword detector on HID interrupt'
+  echo  '  -S                  Flag to enable Sensory keyword detector'
   echo  '  -h                  Display this help and exit'
 }
 
@@ -157,7 +159,7 @@ XMOS_TAG=$2
 
 shift 2
 
-OPTIONS=s:a:d:hp:k:i:t:m:x:GHh
+OPTIONS=s:a:d:hp:k:i:t:m:x:GHSh
 while getopts "$OPTIONS" opt ; do
     case $opt in
         s )
@@ -185,6 +187,9 @@ while getopts "$OPTIONS" opt ; do
             ;;
         H )
             HID_KEY_WORD_DETECTOR_FLAG="-H"
+            ;;
+        S )
+            SENSORY_KEY_WORD_DETECTOR_FLAG="-S"
             ;;
         h )
             show_help
