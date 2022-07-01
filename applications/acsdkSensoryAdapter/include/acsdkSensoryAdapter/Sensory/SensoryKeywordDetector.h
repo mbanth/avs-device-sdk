@@ -147,7 +147,11 @@ private:
      * @param session The SnsrSession to set up runtime settings for.
      * @return @c true if everything succeeded and @c false otherwise.
      */
-    bool setUpRuntimeSettings(SnsrSession* session);
+    bool setUpRuntimeSettings(SnsrSession* session,
+#ifdef SENSORY_OP_POINT
+        , const uint32_t snsrOperatingPoint
+#endif // SENSORY_OP_POINT
+        );
 
     /// The main function that reads data and feeds it into the engine.
     void detectionLoop();

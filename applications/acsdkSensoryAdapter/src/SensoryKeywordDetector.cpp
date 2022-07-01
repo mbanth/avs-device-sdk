@@ -313,7 +313,11 @@ bool SensoryKeywordDetector::init(const std::string& modelFilePath
         return false;
     }
 
-    if (!setUpRuntimeSettings(&m_session)) {
+    if (!setUpRuntimeSettings(&m_session,
+#ifdef SENSORY_OP_POINT
+    , snsrOperatingPoint
+#endif // SENSORY_OP_POINT
+    )) {
         return false;
     }
 
@@ -322,7 +326,11 @@ bool SensoryKeywordDetector::init(const std::string& modelFilePath
     return true;
 }
 
-bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session) {
+bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session
+#ifdef SENSORY_OP_POINT
+    , const uint32_t snsrOperatingPoint
+#endif // SENSORY_OP_POINT
+    ) {
     if (!session) {
         ACSDK_ERROR(LX("setUpRuntimeSettingsFailed").d("reason", "nullSession"));
         return false;
@@ -352,7 +360,7 @@ bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session) {
     }
 */
 #ifdef SENSORY_OP_POINT
-    result = snsrSetInt(*session, SNSR_OPERATING_POINT, AbstractKeywordDetector::m_sensoryOpPoint);
+    result = snsrSetInt(*session, SNSR_OPERATING_POINT, snsrOperatingPoint);
     if (result != SNSR_RC_OK)
     {
         ACSDK_ERROR(LX("setUpRuntimeSettingsFailed")
