@@ -354,8 +354,8 @@ cat << EOF > "$STARTUP_SCRIPT"
 sleep 5
 # check if .asoundrc file exists
 while [[ ! -f $ASOUNDRC_FILE ]]; do
+    echo "$ASOUNDRC_FILE file not found, wait $PAUSE_SEC seconds"
     sleep $PAUSE_SEC
-    echo "$ASOUNDRC_FILE file not found, wait $PAUSE_SEC secons"
 done
 # start AVS console
 $AVSRUN_CMD
