@@ -226,15 +226,22 @@ std::unique_ptr<SensoryKeywordDetector> SensoryKeywordDetector::create(
 
     std::unique_ptr<SensoryKeywordDetector> detector(new SensoryKeywordDetector(
         stream, keywordNotifier, keywordDetectorStateNotifier, *audioFormat, msToPushPerIteration));
-    if (!detector->init(modelFilePath
-#ifdef SENSORY_OP_POINT
-        , snsrOperatingPoint
-#endif // SENSORY_OP_POINT
-        )) {
+    if (!detector->init(modelFilePath)) {
         ACSDK_ERROR(LX("createFailed").d("reason", "initDetectorFailed"));
+        delete detector;
         return nullptr;
     }
 
+#ifdef SENSORY_OP_POINT
+    if (!detector->init(snsrOperatingPoint)) {
+        ACSDK_ERROR(LX("createFailed").d("reason", "initDetectorFailed"));
+        delete detector;
+        return nullptr;
+    }
+#endif // SENSORY_OP_POINT
+
+    detector->m_isShuttingDown = false;
+    detector->m_detectionThread = std::thread(&SensoryKeywordDetector::detectionLoop, this);
     return detector;
 }
 
@@ -258,11 +265,7 @@ SensoryKeywordDetector::SensoryKeywordDetector(
         m_maxSamplesPerPush((audioFormat.sampleRateHz / HERTZ_PER_KILOHERTZ) * msToPushPerIteration.count()) {
 }
 
-bool SensoryKeywordDetector::init(const std::string& modelFilePath
-#ifdef SENSORY_OP_POINT
-    , const uint32_t& snsrOperatingPoint
-#endif // SENSORY_OP_POINT
-    )    {
+bool SensoryKeywordDetector::init(const std::string& modelFilePath) {
     m_streamReader = m_stream->createReader(AudioInputStream::Reader::Policy::BLOCKING);
     if (!m_streamReader) {
         ACSDK_ERROR(LX("initFailed").d("reason", "createStreamReaderFailed"));
@@ -313,24 +316,24 @@ bool SensoryKeywordDetector::init(const std::string& modelFilePath
         return false;
     }
 
-    if (!setUpRuntimeSettings(&m_session
-#ifdef SENSORY_OP_POINT
-    , snsrOperatingPoint
-#endif // SENSORY_OP_POINT
-    )) {
+    if (!setUpRuntimeSettings(&m_session)) {
         return false;
     }
 
-    m_isShuttingDown = false;
-    m_detectionThread = std::thread(&SensoryKeywordDetector::detectionLoop, this);
     return true;
 }
 
-bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session
 #ifdef SENSORY_OP_POINT
-    , const uint32_t snsrOperatingPoint
+bool SensoryKeywordDetector::init(const uint32_t& snsrOperatingPoint) {
+    if (!setUpRuntimeSettings(&m_session, snsrOperatingPoint)) {
+        return false;
+    }
+
+    return true;
+}
 #endif // SENSORY_OP_POINT
-    ) {
+
+bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session) {
     if (!session) {
         ACSDK_ERROR(LX("setUpRuntimeSettingsFailed").d("reason", "nullSession"));
         return false;
@@ -359,8 +362,20 @@ bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session
         return false;
     }
 
+    return true;
+}
+
 #ifdef SENSORY_OP_POINT
-    result = snsrSetInt(*session, SNSR_OPERATING_POINT, snsrOperatingPoint);
+bool SensoryKeywordDetector::setUpRuntimeSettings(
+    SnsrSession* session,
+    const uint32_t snsrOperatingPoint) {
+
+    if (!setUpRuntimeSettings(session))
+    {
+        return false;
+    }
+
+    SnsrRC result = snsrSetInt(*session, SNSR_OPERATING_POINT, snsrOperatingPoint);
     if (result != SNSR_RC_OK)
     {
         ACSDK_ERROR(LX("setUpRuntimeSettingsFailed")
@@ -379,9 +394,9 @@ bool SensoryKeywordDetector::setUpRuntimeSettings(SnsrSession* session
     }
     ACSDK_INFO(LX("setUpRuntimeSettings")
                     .d("operating point",op));
-#endif// SENSORY_OP_POINT
     return true;
 }
+#endif// SENSORY_OP_POINT
 
 void SensoryKeywordDetector::detectionLoop() {
     m_beginIndexOfStreamReader = m_streamReader->tell();

@@ -131,14 +131,20 @@ private:
      * the stream. This function should only be called once with each new @c SensoryKeywordDetector.
      *
      * @param modelFilePath The path to the model file.
+     * @return @c true if the engine was initialized properly and @c false otherwise.
+     */
+    bool init(const std::string& modelFilePath);
+
+#ifdef SENSORY_OP_POINT
+    /**
+     * Initializes only the operating point of the Sensory engine. This function should only be called once with each
+     * new @c SensoryKeywordDetector.
+     *
      * @param snsrOperatingPoint The operating point of the SNSR. (XMOS-only feature).
      * @return @c true if the engine was initialized properly and @c false otherwise.
      */
-    bool init(const std::string& modelFilePath
-#ifdef SENSORY_OP_POINT
-        , const uint32_t& snsrOperatingPoint
+    bool init(const uint32_t& snsrOperatingPoint);
 #endif // SENSORY_OP_POINT
-        );
 
     /**
      * Sets up the runtime settings for a @c SnsrSession. This includes setting the callback handler and setting the
@@ -147,11 +153,19 @@ private:
      * @param session The SnsrSession to set up runtime settings for.
      * @return @c true if everything succeeded and @c false otherwise.
      */
-    bool setUpRuntimeSettings(SnsrSession* session
+    bool setUpRuntimeSettings(SnsrSession* session);
+
 #ifdef SENSORY_OP_POINT
-        , const uint32_t snsrOperatingPoint
+    /**
+     * Sets up the runtime settings for a @c SnsrSession. This includes setting the callback handler, the
+     * @c SNSR_AUTO_FLUSH setting and the Sensory operating point.
+     *
+     * @param session The SnsrSession to set up runtime settings for.
+     * @param snsrOperatingPoint The Sensory operating point.
+     * @return @c true if everything succeeded and @c false otherwise.
+     */
+    bool setUpRuntimeSettings(SnsrSession* session, const uint32_t snsrOperatingPoint);
 #endif // SENSORY_OP_POINT
-        );
 
     /// The main function that reads data and feeds it into the engine.
     void detectionLoop();
