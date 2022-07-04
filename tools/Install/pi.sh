@@ -65,14 +65,14 @@ case $KEY_WORD_DETECTOR_FLAG in
          -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=$THIRD_PARTY_PATH/alexa-rpi/lib/libsnsr.a \
          -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$THIRD_PARTY_PATH/alexa-rpi/include)
     ;;
-  A ))
+  A )
     # Set CMAKE options for Amazon Keyword detector
-    # CMAKE_PLATFORM_SPECIFIC+=( ... )
+    CMAKE_PLATFORM_SPECIFIC+=""
     ;;
-  G ))
+  G )
     CMAKE_PLATFORM_SPECIFIC+=(-DGPIO_KEY_WORD_DETECTOR=ON)
     ;;
-  H ))
+  H )
     CMAKE_PLATFORM_SPECIFIC+=(-DHID_KEY_WORD_DETECTOR=ON)
     ;;
 esac
