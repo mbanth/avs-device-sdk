@@ -62,9 +62,6 @@ PATH_FILES_DIR="$HOME/.config/"
 VOCALFUSION_3510_SALES_DEMO_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_sales_demo_path"
 VOCALFUSION_3510_AVS_SETUP_PATH_FILE="$PATH_FILES_DIR/vocalfusion_3510_avs_setup_path"
 PI_HAT_CTRL_PATH="$THIRD_PARTY_PATH/pi_hat_ctrl"
-SENSORY_KEY_WORD_DETECTOR_FLAG=""
-GPIO_KEY_WORD_DETECTOR_FLAG=""
-HID_KEY_WORD_DETECTOR_FLAG=""
 ALIASES="$HOME/.bash_aliases"
 
 # Default value for XMOS device
@@ -137,7 +134,7 @@ show_help() {
   echo  '  -i <user-pin>       PKCS#11 user pin to access key object functions.'
   echo  '  -k <key-name>       PKCS#11 key object label.'
   echo  '  -x <xmos-device-type> XMOS device to setup: possible values are xvf3100, xvf3500, xvf3510, xvf3600-slave, xvf3600-master, or xvf3610, default is xvf3510'
-  echo  '  -g                    Flag to enable keyword detector on GPIO interrupt'
+  echo  '  -w <keyword-detector-type> Keyword detector to setup: possible values are S (Sensory), A (Amazon), G (GPIO trigger), H (HID trigger), default is no keyword detector, only tap-to-talk is enabled'
   echo  '  -h                  Display this help and exit'
 }
 
@@ -157,7 +154,9 @@ XMOS_TAG=$2
 
 shift 2
 
-OPTIONS=s:a:d:hp:k:i:t:m:x:GHh
+KEY_WORD_DETECTOR_FLAG=""
+
+OPTIONS=s:a:d:hp:k:i:t:m:x:w:h
 while getopts "$OPTIONS" opt ; do
     case $opt in
         s )
@@ -180,11 +179,8 @@ while getopts "$OPTIONS" opt ; do
         x )
             XMOS_DEVICE="$OPTARG"
             ;;
-        G )
-            GPIO_KEY_WORD_DETECTOR_FLAG="-G"
-            ;;
-        H )
-            HID_KEY_WORD_DETECTOR_FLAG="-H"
+        w )
+            KEY_WORD_DETECTOR_FLAG="-w $OPTARG"
             ;;
         h )
             show_help
@@ -258,7 +254,7 @@ PLATFORM=${PLATFORM:-$(get_platform)}
 
 if [ "$PLATFORM" == "Raspberry pi" ]
 then
-  PI_CMD="pi.sh ${SENSORY_KEY_WORD_DETECTOR_FLAG} ${GPIO_KEY_WORD_DETECTOR_FLAG} ${HID_KEY_WORD_DETECTOR_FLAG}"
+  PI_CMD="pi.sh ${KEY_WORD_DETECTOR_FLAG}"
   echo "Running command ${PI_CMD}"
   source $PI_CMD
 elif [ "$PLATFORM" == "Windows mingw64" ]
@@ -398,15 +394,6 @@ while true; do
   esac
 done
 
-if [ -n "$SENSORY_KEY_WORD_DETECTOR_FLAG" ]
-then
-  SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=ON"
-  XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=ON"
-else
-  SENSORY_OP_POINT_FLAG="-DSENSORY_OP_POINT=OFF"
-  XMOS_AVS_TESTS_FLAG="-DXMOS_AVS_TESTS=OFF"
-fi
-
 if [ $XMOS_DEVICE = "xvf3510" ]
 then
   PI_HAT_FLAG="-DPI_HAT_CTRL=ON"
@@ -464,9 +451,7 @@ then
   mkdir -p $BUILD_PATH
   cd $BUILD_PATH
   cmake "$SOURCE_PATH/avs-device-sdk" \
-      $SENSORY_OP_POINT_FLAG \
       $PI_HAT_FLAG \
-      $XMOS_AVS_TESTS_FLAG \
       -DCMAKE_BUILD_TYPE=DEBUG \
       -DPKCS11=$ACSDK_PKCS11 \
       "${CMAKE_PLATFORM_SPECIFIC[@]}"

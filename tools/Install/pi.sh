@@ -28,18 +28,15 @@ show_help() {
   echo  'Usage: pi.sh [OPTIONS]'
   echo  ''
   echo  'Optional parameters'
-  echo  '  -G                    Flag to enable keyword detector on GPIO interrupt'
-  echo  '  -H                    Flag to enable keyword detector on HID event'
+  echo  '  -w <keyword-detector-type> Keyword detector to setup: possible values are S (Sensory), A (Amazon), G (GPIO trigger), H (HID trigger), default is no keyword detector, only tap-to-talk is enabled'
   echo  '  -h                    Display this help and exit'
 }
-OPTIONS=GHh
+KEY_WORD_DETECTOR_FLAG=""
+OPTIONS=w:h
 while getopts "$OPTIONS" opt ; do
   case $opt in
-    G )
-      GPIO_KEY_WORD_DETECTOR_FLAG="ON"
-      ;;
-    H )
-      HID_KEY_WORD_DETECTOR_FLAG="ON"
+    w )
+      KEY_WORD_DETECTOR_FLAG="$OPTARG"
       ;;
     h )
       show_help
@@ -59,18 +56,26 @@ CMAKE_PLATFORM_SPECIFIC=(-DGSTREAMER_MEDIA_PLAYER=ON \
     -DCURL_LIBRARY=${THIRD_PARTY_PATH}/curl-${CURL_VER}/lib/.libs/libcurl.so)
 
 # Add the flags for the different keyword detectors
-if [ -n "$SENSORY_KEY_WORD_DETECTOR_FLAG" ]
-then
-  CMAKE_PLATFORM_SPECIFIC+=(-DSENSORY_KEY_WORD_DETECTOR=ON \
-        -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=$THIRD_PARTY_PATH/alexa-rpi/lib/libsnsr.a \
-        -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$THIRD_PARTY_PATH/alexa-rpi/include)
-elif [ -n "$GPIO_KEY_WORD_DETECTOR_FLAG" ]
-then
-  CMAKE_PLATFORM_SPECIFIC+=(-DGPIO_KEY_WORD_DETECTOR=ON)
-elif [ -n "$HID_KEY_WORD_DETECTOR_FLAG" ]
-then
-  CMAKE_PLATFORM_SPECIFIC+=(-DHID_KEY_WORD_DETECTOR=ON)
-fi
+case $KEY_WORD_DETECTOR_FLAG in
+  S )
+    # Set CMAKE options for Sensory Keyword detector
+    CMAKE_PLATFORM_SPECIFIC+=(-DSENSORY_KEY_WORD_DETECTOR=ON \
+         -DSENSORY_OP_POINT_FLAG=ON \
+         -DXMOS_AVS_TESTS_FLAG=ON \
+         -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=$THIRD_PARTY_PATH/alexa-rpi/lib/libsnsr.a \
+         -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$THIRD_PARTY_PATH/alexa-rpi/include)
+    ;;
+  A ))
+    # Set CMAKE options for Amazon Keyword detector
+    # CMAKE_PLATFORM_SPECIFIC+=( ... )
+    ;;
+  G ))
+    CMAKE_PLATFORM_SPECIFIC+=(-DGPIO_KEY_WORD_DETECTOR=ON)
+    ;;
+  H ))
+    CMAKE_PLATFORM_SPECIFIC+=(-DHID_KEY_WORD_DETECTOR=ON)
+    ;;
+esac
 
 GSTREAMER_AUDIO_SINK="alsasink"
 
@@ -82,7 +87,7 @@ install_dependencies() {
 run_os_specifics() {
   build_port_audio
   build_curl
-  if [ [ -z $GPIO_KEY_WORD_DETECTOR_FLAG ] && [ -z $HID_KEY_WORD_DETECTOR_FLAG ] && [ -z $SENSORY_KEY_WORD_DETECTOR_FLAG ] ]
+  if [ [ -z $KEY_WORD_DETECTOR_FLAG ] ]
   then
     echo
     echo "==============> TAP-TO-TALK IS ENABLED =============="
