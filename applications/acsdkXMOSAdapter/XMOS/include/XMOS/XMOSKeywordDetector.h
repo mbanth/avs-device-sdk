@@ -53,44 +53,6 @@ class XMOSKeywordDetector : public acsdkKWDImplementations::AbstractKeywordDetec
 public:
 
     /**
-     * Creates an @c XMOSKeywordDetector
-     *
-     * @param stream The stream of audio data. This should be formatted in LPCM encoded with 16 bits per sample and
-     * have a sample rate of 16 kHz. Additionally, the data should be in little endian format.
-     * @param audioFormat The format of the audio data located within the stream.
-     * @param keyWordNotifier The object with which to notifiy observers of keyword detections.
-     * @param KeyWordDetectorStateNotifier The object with which to notify observers of state changes in the engine.
-     * @param msToPushPerIteration The amount of data in milliseconds to push to the cloud  at a time. This was the amount used by
-     * Sensory in example code.
-     */
-    static std::unique_ptr<XMOSKeywordDetector> create(
-        const std::shared_ptr<AudioInputStream> stream,
-        const std::shared_ptr<avsCommon::utils::AudioFormat>& audioFormat,
-        std::shared_ptr<acsdkKWDInterfaces::KeywordNotifierInterface> keyWordNotifier,
-        std::shared_ptr<acsdkKWDInterfaces::KeywordDetectorStateNotifierInterface> KeyWordDetectorStateNotifier,
-        std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
-
-    /**
-     * @deprecated
-     * Creates an @c XMOSKeywordDetector
-     *
-     * @param stream The stream of audio data. This should be formatted in LPCM encoded with 16 bits per sample and
-     * have a sample rate of 16 kHz. Additionally, the data should be in little endian format.
-     * @param audioFormat The format of the audio data located within the stream.
-     * @param keyWordObservers The observers to notify of keyword detections.
-     * @param keyWordDetectorStateObservers The observers to notify of state changes in the engine.
-     * @param msToPushPerIteration The amount of data in milliseconds to push to the cloud  at a time. This was the amount used by
-     * Sensory in example code.
-     * @return A new @c XMOSKeywordDetector, or @c nullptr if the operation failed.
-     */
-    static std::unique_ptr<XMOSKeywordDetector> create(
-        const std::shared_ptr<AudioInputStream> stream,
-        avsCommon::utils::AudioFormat audioFormat,
-        std::unordered_set<std::shared_ptr<KeyWordObserverInterface>> keyWordObservers,
-        std::unordered_set<std::shared_ptr<KeyWordDetectorStateObserverInterface>> keyWordDetectorStateObservers,
-        std::chrono::milliseconds msToPushPerIteration = std::chrono::milliseconds(10));
-
-    /**
      * Destructor.
      */
     ~XMOSKeywordDetector();
